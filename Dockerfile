@@ -125,6 +125,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # composite).
 RUN bash scripts/build_loom.sh
 
+# ─── Perfetto trace viewer (the Runs table's "⏱ Trace") ───────────────────────
+# A pinned Perfetto UI release (Apache-2.0), mirrored from ui.perfetto.dev and
+# verified file-by-file against hashes pinned in lib/perfetto_ui.py, then served
+# by the workbench at <base-path>/perfetto/ -- so opening a trace needs no
+# outside network at runtime (GovCloud). ~64 MB. A failed verification fails the
+# build. Without this step the server falls back to https://ui.perfetto.dev.
+ENV VIVARIUM_WORKBENCH_PERFETTO_UI_DIR=/app/perfetto-ui
+RUN python -m vivarium_workbench.lib.perfetto_ui --dest /app/perfetto-ui
+
 # Sanity: everything the SERVER itself imports resolves in one interpreter, and
 # the loom bundle actually landed on disk. `vivarium_workbench.api.app` is
 # imported explicitly and separately — it is the exact module chain that crashed
