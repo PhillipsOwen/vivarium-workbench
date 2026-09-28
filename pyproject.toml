@@ -160,16 +160,12 @@ viva-workspace = { git = "https://github.com/vivarium-collective/viva-workspace.
 # deliberately when adopting upstream changes. Equals the currently-locked rev,
 # so this is a no-op resolve.
 investigation-contracts = { git = "https://github.com/vivarium-collective/investigation-contracts.git", rev = "65c793fd231d952e49a9cfe4244797dadde1bedc" }
-# process-bigraph: pinned to the exact git commit the image shipped while
-# v2ecoli was in this lock (v2ecoli contributed it as a transitive source).
-# Dropping v2ecoli would otherwise fall back to PyPI 1.8.3, which LACKS the 11
-# commits between v1.8.3 and 8b9830f that the image runs today — a substrate
-# skew of the item-44 kind. Pinned by REV (not `branch = "main"`) so a re-lock
-# never moves it silently (#483). Bump deliberately, or replace with a PyPI
-# floor: process-bigraph 1.8.4 on PyPI contains 8b9830f.
-# (bigraph-schema needs no pin: the old lock's git commit c45cd66 IS the v1.6.0
-# tag, which PyPI 1.6.0 was released from.)
-process-bigraph = { git = "https://github.com/vivarium-collective/process-bigraph.git", rev = "8b9830f9128b0506d72c0ab2e2f885654efd9d21" }
+# process-bigraph / bigraph-schema: NO source here, deliberately. While v2ecoli
+# was in this lock it contributed git sources for both (the image shipped
+# process-bigraph 8b9830f, a commit between 1.8.3 and 1.8.4). Pinning a git rev
+# here instead would collide with v2ecoli's own pin in demos/v2ecoli/
+# ("conflicting URLs"); a bare requirement unifies with it. The root lock takes
+# the PyPI release (process-bigraph 1.8.4, which contains 8b9830f).
 # NO sibling-checkout (path) sources here, by design: this project must install
 # from a bare clone with a plain `uv sync` (CI's `standalone` job enforces it).
 # v2ecoli / pbg-ptools for local e-coli work: demos/v2ecoli/pyproject.toml.

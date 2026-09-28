@@ -1577,8 +1577,8 @@ wheels = [
 
 [[package]]
 name = "process-bigraph"
-version = "1.8.3"
-source = { git = "https://github.com/vivarium-collective/process-bigraph.git?rev=8b9830f9128b0506d72c0ab2e2f885654efd9d21#8b9830f9128b0506d72c0ab2e2f885654efd9d21" }
+version = "1.8.4"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bigraph-schema" },
     { name = "matplotlib" },
@@ -1586,6 +1586,10 @@ dependencies = [
     { name = "pint" },
     { name = "scipy" },
     { name = "sympy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/21/74/2f2537f1fa21858be64daad60ded3291ea7b418f151b4e1859e6e29f000c/process_bigraph-1.8.4.tar.gz", hash = "sha256:f4649771ba5090e9d1a4ad00557f1ed0ab7614eb1e57626f75bc5c62d3f966be", size = 215984, upload-time = "2026-09-04T19:46:46.676Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/28/9290d69d2ace293cfa4de660ccc229fe2b49139b36ac7d0b3b54667e5d4f/process_bigraph-1.8.4-py3-none-any.whl", hash = "sha256:271d8d281dffa5486f9df515eb72a8a133315f67c6f78983b079284cc4e37baa", size = 235005, upload-time = "2026-09-04T19:46:45.232Z" },
 ]
 
 [[package]]
@@ -2565,7 +2569,7 @@ requires-dist = [
     { name = "pbg-basic-processes", git = "https://github.com/vivarium-collective/pbg-basic-processes.git?branch=main" },
     { name = "playwright", marker = "extra == 'loom-render'", specifier = ">=1.40" },
     { name = "polars", marker = "extra == 'test'" },
-    { name = "process-bigraph", git = "https://github.com/vivarium-collective/process-bigraph.git?rev=8b9830f9128b0506d72c0ab2e2f885654efd9d21" },
+    { name = "process-bigraph", specifier = ">=1.8.2" },
     { name = "pyarrow", marker = "extra == 'test'" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pypdf", specifier = ">=4.0" },
