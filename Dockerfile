@@ -92,8 +92,9 @@ COPY . .
 # than silently re-resolving); `--no-dev` keeps test/lint tooling out of the
 # shipped image.
 #
-# This does NOT pull a workspace package: v2ecoli sits in the optional `demo`
-# extra, not in [project.dependencies], and is not requested here. Every core
+# This does NOT pull a workspace package: v2ecoli is not a dependency of this
+# project at all (the local v2ecoli dev environment is its own project,
+# demos/v2ecoli/, which this image does not install). Every core
 # dependency resolves from a git source declared in [tool.uv.sources], so no
 # private registry is involved.
 RUN --mount=type=cache,target=/root/.cache/uv \
