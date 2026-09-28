@@ -58,3 +58,20 @@ uv pip install -e ".[dev,test]"
 uv pip install -e ../pbg-superpowers --no-deps   # current local checkout
 uv run pytest
 ```
+
+## Installing from a bare clone, and the v2ecoli environment
+
+The root project installs with a plain `uv sync` from a clone that has **nothing
+beside it** — no sibling checkouts. CI's `standalone` workflow enforces that
+(`uv sync --locked`, then `vwb smoke`); run the same check locally with
+`scripts/standalone_smoke.sh`. Do not add `path = "../<sibling>"` sources to the
+root `pyproject.toml`.
+
+The e-coli environment that used to be the root's `demo` extra
+(`uv sync --extra demo`) is its own project, with `v2ecoli` and `pbg-ptools` as
+editable sibling checkouts:
+
+```bash
+# layout: <dir>/vivarium-workbench, <dir>/v2ecoli, <dir>/pbg-ptools
+cd demos/v2ecoli && uv sync
+```
