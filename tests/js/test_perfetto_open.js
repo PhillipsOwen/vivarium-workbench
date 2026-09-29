@@ -131,7 +131,9 @@ async function testOpenTraceBundledEndToEnd() {
   P._reset();
   const b = bus(); const c = clock();
   const loc = { origin: 'https://wb.example' };
-  const trace = new TextEncoder().encode('{"traceEvents":[]}').buffer;
+  const trace = new TextEncoder().encode(
+    '{"traceEvents":[{"name":"run","ph":"X","ts":0,"dur":1,"pid":1,"tid":1}]}').buffer;
+  const updates = [];
   const f = fetchStub({
     '/api/remote-run-trace-support': () => ({ ok: true, json: () => Promise.resolve({
       supported: true, viewer: { mode: 'bundled', url: '/perfetto/', version: 'v58' } }) }),
@@ -142,7 +144,7 @@ async function testOpenTraceBundledEndToEnd() {
   let opened = null;
   const w = perfettoWindow(b, loc.origin); w.loaded = true;
   const done = P.openTrace({ simulation_id: 42 }, {
-    fetch: f, location: loc,
+    fetch: f, location: loc, notify: (m, k) => updates.push([k, m]),
     open: (url, name) => { opened = { url, name }; return w; },
     env: { listenOn: b, setInterval: c.setInterval, clearInterval: c.clearInterval, now: c.now },
   });
@@ -157,12 +159,137 @@ async function testOpenTraceBundledEndToEnd() {
   assert.strictEqual(post.msg.perfetto.fileName, 'simulation-42-trace.json');
   assert.strictEqual(post.msg.perfetto.url, 'https://wb.example/api/remote-run-trace?simulation_id=42');
   assert.strictEqual(post.target, 'https://wb.example');
+  // Progress, then the outcome: the first update names the ~30 MB first-load cost of the
+  // bundled viewer, and the last one replaces it with "opened".
+  assert.strictEqual(updates[0][0], 'loading');
+  assert.ok(/Loading the trace for simulation 42 in Perfetto/.test(updates[0][1]), updates[0][1]);
+  assert.ok(/~30 MB/.test(updates[0][1]));
+  assert.deepStrictEqual(updates[updates.length - 1][0], 'ok');
+  assert.ok(/Opened the trace for simulation 42/.test(updates[updates.length - 1][1]));
+}
+
+function traceRoutes(body, headers) {
+  const buf = new TextEncoder().encode(body).buffer;
+  return fetchStub({
+    '/api/remote-run-trace-support': () => ({ ok: true, json: () => Promise.resolve({
+      supported: true, viewer: { mode: 'bundled', url: '/perfetto/', version: 'v58' } }) }),
+    '/api/remote-run-trace': () => ({ ok: true, status: 200,
+      headers: { get: (h) => (headers || {})[h] || null },
+      arrayBuffer: () => Promise.resolve(buf) }),
+  });
+}
+
+async function testEmptyTraceNeverReachesPerfetto() {
+  // viva-api's document for a run that recorded nothing (dev sims 1507-1519): Perfetto
+  // would open on an empty workspace. The popup is closed and the user is told why.
+  const empty = '{"traceEvents": [], "displayTimeUnit": "ms", "otherData": {"simulation_id": 1519}}';
+  for (const headers of [{ 'X-Trace-Events': '0' }, {}]) {   // server-counted, and the client fallback
+    P._reset();
+    const b = bus(); const c = clock();
+    const w = perfettoWindow(b, 'https://wb.example'); w.loaded = true;
+    const updates = [];
+    const btn = { textContent: '⏱ Trace', disabled: false, setAttribute() {}, removeAttribute() {} };
+    const res = await P.openTrace({ simulation_id: 1519 }, {
+      fetch: traceRoutes(empty, headers), location: { origin: 'https://wb.example' },
+      open: () => w, button: btn, notify: (m, k) => updates.push([k, m]),
+      env: { listenOn: b, setInterval: c.setInterval, clearInterval: c.clearInterval, now: c.now },
+    });
+    assert.strictEqual(res, 'empty', JSON.stringify(headers));
+    assert.ok(w.closed, 'the Perfetto popup is closed again');
+    assert.ok(!w.posted.length, 'nothing is posted to it, not even a PING');
+    const last = updates[updates.length - 1];
+    assert.strictEqual(last[0], 'warn');
+    assert.ok(/Simulation 1519 recorded no trace events/.test(last[1]), last[1]);
+    assert.ok(/event sinks/.test(last[1]));
+    assert.strictEqual(btn.disabled, false); assert.strictEqual(btn.textContent, '⏱ Trace');
+  }
+}
+
+async function testServerCountWinsOverTheDocument() {
+  // A count from the server is authoritative: a non-zero header opens Perfetto without the
+  // client parsing anything (even an unparseable body is not second-guessed).
+  P._reset();
+  const b = bus(); const c = clock();
+  const w = perfettoWindow(b, 'https://wb.example'); w.loaded = true;
+  const done = P.openTrace({ simulation_id: 7 }, {
+    fetch: traceRoutes('not json', { 'X-Trace-Events': '3' }), location: { origin: 'https://wb.example' },
+    open: () => w, notify: () => {},
+    env: { listenOn: b, setInterval: c.setInterval, clearInterval: c.clearInterval, now: c.now },
+  });
+  for (let i = 0; i < 20 && c.active() === 0; i++) await new Promise((r) => setImmediate(r));
+  c.tick();
+  assert.strictEqual(await done, 'opened');
+}
+
+async function testTraceEventCount() {
+  const enc = (o) => new TextEncoder().encode(JSON.stringify(o)).buffer;
+  assert.strictEqual(P.traceEventCount('0', null), 0);
+  assert.strictEqual(P.traceEventCount('12', null), 12);
+  assert.strictEqual(P.traceEventCount(null, enc({ traceEvents: [] })), 0);
+  // metadata-only (process/thread names) draws nothing: still empty
+  assert.strictEqual(P.traceEventCount(null, enc({ traceEvents: [
+    { ph: 'M', name: 'process_name', pid: 1, args: { name: 'sim' } }] })), 0);
+  assert.strictEqual(P.traceEventCount(null, enc([{ ph: 'X', ts: 0, dur: 1 }, { ph: 'M' }])), 1);
+  assert.strictEqual(P.traceEventCount(null, new TextEncoder().encode('nope').buffer), null);
+  assert.strictEqual(P.traceEventCount('garbage', enc({ traceEvents: [] })), 0, 'bad header -> parse');
+  assert.strictEqual(P.traceEventCount(null, new ArrayBuffer(2 * 1024 * 1024)), null, 'big: not parsed');
+}
+
+async function testProgressStaysUntilPerfettoAnswers() {
+  // The first open of the bundled viewer takes ~15 s through a tunnel: the button stays busy
+  // and the status keeps saying "loading" until Perfetto answers, then says "opened".
+  P._reset();
+  const b = bus(); const c = clock();
+  const w = perfettoWindow(b, 'https://wb.example');     // not loaded yet
+  const updates = [];
+  const attrs = {};
+  const btn = { textContent: '⏱ Trace', disabled: false,
+    setAttribute: (k, v) => { attrs[k] = v; }, removeAttribute: (k) => { delete attrs[k]; } };
+  const done = P.openTrace({ simulation_id: 1485 }, {
+    fetch: traceRoutes('{"traceEvents":[{"ph":"X","ts":0,"dur":1}]}', { 'X-Trace-Events': '1' }),
+    location: { origin: 'https://wb.example' }, open: () => w, button: btn,
+    notify: (m, k) => updates.push([k, m]),
+    env: { listenOn: b, setInterval: c.setInterval, clearInterval: c.clearInterval, now: c.now },
+  });
+  for (let i = 0; i < 20 && c.active() === 0; i++) await new Promise((r) => setImmediate(r));
+  c.advance(5000); c.tick(); c.advance(5000); c.tick();   // Perfetto still loading
+  assert.strictEqual(btn.disabled, true, 'busy while Perfetto loads');
+  assert.strictEqual(attrs['aria-busy'], 'true');
+  assert.ok(updates.every(([k]) => k === 'loading'), JSON.stringify(updates));
+  assert.ok(/fetched .*waiting for Perfetto to load/.test(updates[updates.length - 1][1]));
+  w.loaded = true; c.tick();
+  assert.strictEqual(await done, 'opened');
+  assert.strictEqual(btn.disabled, false); assert.strictEqual(btn.textContent, '⏱ Trace');
+  assert.ok(!('aria-busy' in attrs));
+  assert.strictEqual(updates[updates.length - 1][0], 'ok');
+}
+
+async function testStatusBoxInTheDom() {
+  // Without a notify hook the status is one element in the workbench page, updated in place.
+  P._reset();
+  const els = {};
+  function mk(tag) {
+    const e = { tag, children: [], style: {}, attrs: {}, textContent: '',
+      setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; },
+      appendChild(ch) { this.children.push(ch); if (ch.id) els[ch.id] = ch; return ch; },
+      addEventListener() {} };
+    return e;
+  }
+  const doc = { body: mk('body'), createElement: mk, getElementById: (id) => els[id] || null };
+  const f = traceRoutes('{"traceEvents":[]}', { 'X-Trace-Events': '0' });
+  const w = { closed: false, close() { this.closed = true; }, postMessage() {} };
+  await P.openTrace({ simulation_id: 3 }, { fetch: f, location: { origin: 'https://wb.example' },
+    open: () => w, document: doc });
+  const box = els['viva-trace-status'];
+  assert.ok(box, 'status box created');
+  assert.strictEqual(doc.body.children.length, 1, 'one box, reused for every update');
+  assert.strictEqual(box.attrs['data-kind'], 'warn');
+  assert.ok(/no trace events/.test(box._text.textContent));
 }
 
 async function testOpenTraceErrorClosesWindow() {
   P._reset();
   const toasts = [];
-  globalThis._showToast = (m) => toasts.push(m);
   const f = fetchStub({
     '/api/remote-run-trace-support': () => ({ ok: true, json: () => Promise.resolve({
       supported: true, viewer: { mode: 'external', url: 'https://ui.perfetto.dev/' } }) }),
@@ -170,11 +297,13 @@ async function testOpenTraceErrorClosesWindow() {
       json: () => Promise.resolve({ error: 'does not support: viva-v1-trace' }) }),
   });
   const w = { closed: false, close() { this.closed = true; }, postMessage() {} };
-  const res = await P.openTrace({ simulation_id: 5 }, { fetch: f, location: { origin: 'x' }, open: () => w });
+  const res = await P.openTrace({ simulation_id: 5 }, { fetch: f, location: { origin: 'x' }, open: () => w,
+    notify: (m, k) => toasts.push([k, m]) });
   assert.strictEqual(res, 'error');
   assert.ok(w.closed, 'the empty Perfetto window is closed again');
-  assert.ok(/viva-v1-trace/.test(toasts[0]), 'the server error is shown');
-  delete globalThis._showToast;
+  const last = toasts[toasts.length - 1];
+  assert.strictEqual(last[0], 'error');
+  assert.ok(/viva-v1-trace/.test(last[1]), 'the server error is shown');
 }
 
 async function testSnapshotNeverAsks() {
@@ -191,7 +320,8 @@ async function testSnapshotNeverAsks() {
 (async () => {
   for (const t of [testViewerUrl, testPingUntilPongThenPost, testIgnoresPongFromElsewhere,
     testClosedWindowGivesUp, testUnparseableViewerUrlPostsNothing, testOpenTraceBundledEndToEnd, testOpenTraceErrorClosesWindow,
-    testSnapshotNeverAsks]) {
+    testEmptyTraceNeverReachesPerfetto, testServerCountWinsOverTheDocument, testTraceEventCount,
+    testProgressStaysUntilPerfettoAnswers, testStatusBoxInTheDom, testSnapshotNeverAsks]) {
     await t();
     console.log('ok -', t.name);
   }

@@ -92,3 +92,11 @@ on `http://localhost:` / `http://127.0.0.1:` / `*.perfetto.dev` origins — whic
 reach the workbench through an SSM tunnel. Grep the new `frontend_bundle.js` for
 `createEmbedder` / `initAnalytics` and confirm testing mode still disables them (and still
 does nothing else user-visible).
+
+And re-check the fonts. The v58.3 `frontend.css` declares each font a second time with
+URLs that climb out of the release directory (`../assets/assets/Roboto.woff2`,
+`../../assets/…`, `../../../../assets/…` — 404s on `ui.perfetto.dev` too), so the
+workbench serves the stylesheet with those pointed back at the bundle's own `assets/`
+(`perfetto_ui.fix_stylesheet`; the file on disk stays the verified one). Open a trace from
+a sub-path (`--base-path /workbench`) in a fresh browser profile and confirm there are no
+404s for `…/assets/assets/*.woff2`; if a new release fixed its CSS, the rewrite is a no-op.

@@ -208,3 +208,49 @@ def test_trace_routes_survive_readonly(monkeypatch, tmp_path):
     c = TestClient(app)
     assert c.get("/api/remote-run-trace", params={"simulation_id": 1}).status_code == 200
     assert c.get("/api/remote-run-trace-support").status_code == 200
+
+
+# ------------------------------------------------ empty traces (X-Trace-Events)
+
+EMPTY = json.dumps({"traceEvents": [], "displayTimeUnit": "ms",
+                    "otherData": {"simulation_id": 1519}}).encode()
+
+
+@pytest.mark.parametrize("body,expected", [
+    (TRACE, 1),
+    (EMPTY, 0),
+    # metadata (process/thread names) draws nothing: a trace of only those is empty
+    (json.dumps({"traceEvents": [{"ph": "M", "name": "process_name", "pid": 1}]}).encode(), 0),
+    (json.dumps([{"ph": "X", "ts": 0, "dur": 1}, {"ph": "M"}, {"ph": "i", "ts": 2}]).encode(), 2),
+    (b"not json", None),
+    (json.dumps({"no": "events"}).encode(), None),
+])
+def test_count_trace_events(body, expected):
+    assert remote_trace.count_trace_events(body) == expected
+
+
+def test_count_trace_events_does_not_parse_a_large_document(monkeypatch):
+    monkeypatch.setattr(remote_trace, "COUNT_EVENTS_MAX_BYTES", 10)
+    assert remote_trace.count_trace_events(EMPTY) is None
+
+
+class _EmptyTraceClient(FakeClient):
+    def simulation_trace(self, simulation_id):
+        self.calls.append(("simulation_trace", simulation_id))
+        return EMPTY
+
+
+def test_route_trace_reports_its_event_count(rc):
+    r = rc.get("/api/remote-run-trace", params={"simulation_id": 42})
+    assert r.headers["x-trace-events"] == "1"
+    rc.state["client"] = _EmptyTraceClient()
+    r = rc.get("/api/remote-run-trace", params={"simulation_id": 1519})
+    assert r.status_code == 200
+    assert r.headers["x-trace-events"] == "0"
+    assert r.content == EMPTY, "the document itself is still passed through verbatim"
+
+
+def test_route_trace_omits_the_count_when_unknown(rc, monkeypatch):
+    monkeypatch.setattr(remote_trace, "COUNT_EVENTS_MAX_BYTES", 10)
+    r = rc.get("/api/remote-run-trace", params={"simulation_id": 42})
+    assert r.status_code == 200 and "x-trace-events" not in r.headers

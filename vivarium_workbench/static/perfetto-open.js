@@ -15,6 +15,14 @@
 //              per origin whether to trust the workbench)
 //   off      — no viewer: the action downloads the trace JSON instead.
 //
+// Progress and outcome are shown in a small status box in the workbench page
+// (#viva-trace-status — never injected into Perfetto): the first open of the
+// bundled viewer downloads ~30 MB and can take tens of seconds through a tunnel,
+// during which the popup shows Perfetto's own empty home page. A run that
+// recorded no trace events (the server's X-Trace-Events: 0, or the document
+// itself when the header is absent) never reaches Perfetto: the popup is closed
+// again and the status box says why, instead of an empty workspace.
+//
 // The action is hidden until the support check says `supported` — a deployment
 // without the capability, an unreachable viva-api, and the static snapshot
 // (no backend) all leave it hidden. Exposed as window.VivaPerfetto; also
@@ -25,6 +33,12 @@
   var PING_INTERVAL_MS = 250;
   var PING_TIMEOUT_MS = 60000;   // Perfetto's first load pulls ~30 MB of wasm/js
   var HIDE_STYLE_ID = 'viva-trace-hide';
+  var STATUS_ID = 'viva-trace-status';
+  var STATUS_OK_HIDE_MS = 6000;  // success fades; warnings and errors stay until closed
+  // The server counts events (X-Trace-Events) whenever it can; parse here only when it
+  // did not say and the document is small. An empty trace is ~100 bytes, so a document
+  // past this size has events and is not worth parsing just to learn that.
+  var CLIENT_COUNT_MAX_BYTES = 1024 * 1024;
   var _support = null;           // cached Promise of the support body
   var _supportValue = null;      // ...and its value once resolved (sync access)
 
@@ -146,9 +160,76 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
   }
 
-  function _toast(msg) {
-    if (typeof global._showToast === 'function') global._showToast(msg);
-    else if (typeof global.alert === 'function') global.alert(msg);
+  // The number of real (non-"M" metadata) events in a trace, or null when unknown.
+  // `header` is the X-Trace-Events value (authoritative when it is a count).
+  function traceEventCount(header, buffer) {
+    if (header != null && /^\d+$/.test(String(header).trim())) return parseInt(header, 10);
+    if (!buffer || buffer.byteLength > CLIENT_COUNT_MAX_BYTES) return null;
+    var doc;
+    try { doc = JSON.parse(new TextDecoder().decode(buffer)); } catch (e) { return null; }
+    var events = Array.isArray(doc) ? doc : (doc && doc.traceEvents);
+    if (!Array.isArray(events)) return null;
+    var n = 0;
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (!(ev && ev.ph === 'M')) n++;
+    }
+    return n;
+  }
+
+  var STATUS_COLORS = {
+    loading: '#2c3e50', ok: '#2e7d32', warn: '#8a5a00', error: '#b00020',
+  };
+
+  // The status box: one fixed element, reused and updated in place, so a progress
+  // message is REPLACED by its outcome rather than stacked under it.
+  function _statusBox(doc) {
+    if (!doc || !doc.body || typeof doc.createElement !== 'function') return null;
+    var el = doc.getElementById(STATUS_ID);
+    if (el) return el;
+    el = doc.createElement('div');
+    el.id = STATUS_ID;
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:10000;max-width:440px;' +
+      'padding:10px 34px 10px 14px;border-radius:6px;font:13px/1.45 system-ui,sans-serif;' +
+      'color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.3)';
+    var text = doc.createElement('span');
+    text.className = 'viva-trace-status-text';
+    el.appendChild(text);
+    var close = doc.createElement('button');
+    close.type = 'button';
+    close.className = 'viva-trace-status-close';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.textContent = '×';
+    close.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:0;' +
+      'color:inherit;font-size:16px;cursor:pointer;line-height:1';
+    close.addEventListener('click', function () { el.style.display = 'none'; });
+    el.appendChild(close);
+    el._text = text;
+    doc.body.appendChild(el);
+    return el;
+  }
+
+  // Show `msg` in the status box. `kind`: loading | ok | warn | error. `opts.notify`
+  // (tests, embedders) receives every update instead of the DOM.
+  function _status(opts, doc, msg, kind) {
+    if (typeof opts.notify === 'function') { opts.notify(msg, kind); return; }
+    var el = _statusBox(doc);
+    if (!el) return;
+    if (el._hideTimer) { clearTimeout(el._hideTimer); el._hideTimer = null; }
+    el._text.textContent = msg;
+    el.setAttribute('data-kind', kind);
+    el.style.background = STATUS_COLORS[kind] || STATUS_COLORS.loading;
+    el.style.display = 'block';
+    if (kind === 'ok') {
+      el._hideTimer = setTimeout(function () { el.style.display = 'none'; }, STATUS_OK_HIDE_MS);
+    }
+  }
+
+  function _mb(bytes) {
+    var mb = bytes / (1024 * 1024);
+    return mb >= 1 ? mb.toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' kB';
   }
 
   // Open the trace of a remote run. `ref` is {simulation_id} | {composite_run_id}
@@ -176,9 +257,19 @@
     function _go(s) {
       var url = viewerUrl(s && s.viewer, loc);
       var win = url ? (opts.open || global.open)(url, '_blank') : null;
+      var bundled = !!(s && s.viewer && s.viewer.mode === 'bundled');
       var orig = btn ? btn.textContent : '';
-      if (btn) { btn.disabled = true; btn.textContent = '… trace'; }
-      function restore() { if (btn) { btn.disabled = false; btn.textContent = orig; } }
+      if (btn) {
+        btn.disabled = true; btn.textContent = '⏳ Trace';
+        btn.setAttribute('aria-busy', 'true');
+      }
+      function restore() {
+        if (btn) { btn.disabled = false; btn.textContent = orig; btn.removeAttribute('aria-busy'); }
+      }
+      var viewerNote = bundled ? ' (the first open downloads the viewer, ~30 MB)' : '';
+      _status(opts, doc, win
+        ? 'Loading the trace for ' + label + ' in Perfetto…' + viewerNote
+        : 'Fetching the trace for ' + label + '…', 'loading');
       return fetchImpl(traceUrl).then(function (r) {
         if (!r.ok) {
           return r.json().catch(function () { return {}; }).then(function (b) {
@@ -186,32 +277,62 @@
           });
         }
         var fileName = 'trace-' + String(id) + '.json';
-        var cd = r.headers && r.headers.get && r.headers.get('Content-Disposition');
+        var get = function (h) { return (r.headers && r.headers.get) ? r.headers.get(h) : null; };
+        var cd = get('Content-Disposition');
         var m = cd && /filename="([^"]+)"/.exec(cd);
         if (m) fileName = m[1];
-        return r.arrayBuffer().then(function (buf) { return { buf: buf, fileName: fileName }; });
+        var header = get('X-Trace-Events');
+        return r.arrayBuffer().then(function (buf) {
+          return { buf: buf, fileName: fileName, events: traceEventCount(header, buf) };
+        });
       }).then(function (t) {
-        restore();
+        if (t.events === 0) {
+          // Nothing to draw: Perfetto would open on an empty workspace, which reads as
+          // "the viewer is broken". Close the popup we had to open up front and say why.
+          if (win && !win.closed) win.close();
+          restore();
+          _status(opts, doc, capitalize(label) + ' recorded no trace events — runs from ' +
+            'before event tracing, or run without event sinks, have none.', 'warn');
+          return 'empty';
+        }
         if (!win) {
-          if (url) _toast('Popup blocked — downloading the trace instead.');
+          restore();
           _download(t.buf, t.fileName, doc);
+          _status(opts, doc, url ? 'Popup blocked — downloaded the trace (' + t.fileName + ') instead.'
+            : 'Downloaded the trace (' + t.fileName + ').', url ? 'warn' : 'ok');
           return 'downloaded';
         }
+        _status(opts, doc, 'Trace for ' + label + ' fetched (' + _mb(t.buf.byteLength) +
+          '); waiting for Perfetto to load…' + viewerNote, 'loading');
         var abs = ((loc && loc.origin) || '') + traceUrl;
         return postTrace(win, url, t.buf, {
           title: 'Workbench — ' + label, fileName: t.fileName, url: abs,
         }, opts.env).then(function (ok) {
-          if (!ok) _toast('Perfetto did not respond — is ' + url + ' reachable from this browser?');
-          return ok ? 'opened' : 'timeout';
+          restore();
+          if (ok) {
+            _status(opts, doc, 'Opened the trace for ' + label + ' in Perfetto.', 'ok');
+            return 'opened';
+          }
+          if (win.closed) {
+            _status(opts, doc, 'The Perfetto window was closed before the trace for ' + label +
+              ' loaded.', 'warn');
+            return 'closed';
+          }
+          _status(opts, doc, 'Perfetto did not respond — is ' + url + ' reachable from this browser?',
+            'error');
+          return 'timeout';
         });
       }).catch(function (err) {
         restore();
         if (win && !win.closed) win.close();
-        _toast('Could not load the trace for ' + label + ': ' + (err && err.message || err));
+        _status(opts, doc, 'Could not load the trace for ' + label + ': ' +
+          (err && err.message || err), 'error');
         return 'error';
       });
     }
   }
+
+  function capitalize(x) { return x.charAt(0).toUpperCase() + x.slice(1); }
 
   // Delegated click: any `.trace-remote-btn` inside a row carrying the remote
   // simulation id (sim-table.js renders the button, rows carry the id).
@@ -230,6 +351,7 @@
 
   var api = {
     support: support, viewerUrl: viewerUrl, postTrace: postTrace, openTrace: openTrace,
+    traceEventCount: traceEventCount,
     _reset: function () { _support = null; _supportValue = null; },
   };
   global.VivaPerfetto = api;
