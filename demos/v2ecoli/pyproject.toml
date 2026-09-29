@@ -20,9 +20,10 @@
 # (`uv sync --frozen --no-dev`) plus pbg-ptools from git (`--no-deps`); it has
 # never installed this environment or the old `demo` extra. See ../../Dockerfile.
 #
-# The lock (uv.lock here) records v2ecoli's tree as of the sibling HEADs at lock
-# time. Path sources move with your checkouts, so use plain `uv sync` (it
-# re-locks when a sibling's metadata changed), not `--frozen`.
+# No lock is committed here (demos/v2ecoli/uv.lock is gitignored): it would only
+# record the sibling checkouts' HEADs at lock time and go stale as they move.
+# Path sources move with your checkouts, so plain `uv sync` locks locally (and
+# re-locks when a sibling's metadata changed); don't use `--frozen`.
 
 [project]
 name = "vivarium-workbench-v2ecoli-demo"

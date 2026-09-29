@@ -2569,7 +2569,7 @@ requires-dist = [
     { name = "pbg-basic-processes", git = "https://github.com/vivarium-collective/pbg-basic-processes.git?branch=main" },
     { name = "playwright", marker = "extra == 'loom-render'", specifier = ">=1.40" },
     { name = "polars", marker = "extra == 'test'" },
-    { name = "process-bigraph", specifier = ">=1.8.2" },
+    { name = "process-bigraph", specifier = ">=1.8.4" },
     { name = "pyarrow", marker = "extra == 'test'" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pypdf", specifier = ">=4.0" },
