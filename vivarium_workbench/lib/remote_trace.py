@@ -19,6 +19,7 @@ the action instead of offering one that cannot work.
 
 from __future__ import annotations
 
+import json
 from typing import Optional, Union
 
 from vivarium_workbench.lib import perfetto_ui
@@ -31,6 +32,39 @@ from vivarium_workbench.lib.server_capabilities import (
 from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError, sms_api_base
 
 TraceBody = Union[bytes, dict]
+
+#: The response header carrying :func:`count_trace_events` (omitted when unknown).
+TRACE_EVENTS_HEADER = "X-Trace-Events"
+
+#: Above this size the document is not parsed to count its events. An empty trace is
+#: ~100 bytes of envelope (``{"traceEvents": [], "displayTimeUnit": ..., "otherData":
+#: {...}}``), so the question "did this run record anything?" is always answered for the
+#: documents it matters for; a multi-megabyte one is not empty, and parsing it just to say
+#: so would cost server memory for nothing.
+COUNT_EVENTS_MAX_BYTES = 8 * 1024 * 1024
+
+
+def count_trace_events(body: bytes) -> Optional[int]:
+    """The number of real (non-metadata) events in a Chrome Trace Event document.
+
+    Metadata events (``"ph": "M"`` -- process/thread names) draw nothing, so a trace
+    holding only those is as empty as ``{"traceEvents": []}``: Perfetto opens it on an
+    empty workspace, which is what users of runs recorded without event sinks saw.
+    Accepts both forms of the format (an object with ``traceEvents``, or a bare array).
+    ``None`` when unknown -- too large to be worth parsing (see
+    :data:`COUNT_EVENTS_MAX_BYTES`) or not a trace document -- and the caller then says
+    nothing rather than guessing.
+    """
+    if len(body) > COUNT_EVENTS_MAX_BYTES:
+        return None
+    try:
+        doc = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    events = doc.get("traceEvents") if isinstance(doc, dict) else doc
+    if not isinstance(events, list):
+        return None
+    return sum(1 for e in events if not (isinstance(e, dict) and e.get("ph") == "M"))
 
 
 def make_client() -> SmsApiClient:

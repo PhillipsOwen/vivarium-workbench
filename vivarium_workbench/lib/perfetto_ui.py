@@ -31,9 +31,22 @@ the image, never committed or put in the wheel.
 
 A pinned version directory is self-contained: its ``index.html`` carries no
 channel map and loads ``./frontend_bundle.js`` relative to itself, so it works
-under any sub-path (``/workbench/perfetto/``). Served from the workbench's own
-origin, a posted trace is trusted without Perfetto's "Open trace?" prompt
-(Perfetto trusts ``window.origin``); ``ui.perfetto.dev`` asks once per origin.
+under any sub-path (``/workbench/perfetto/``) -- with one exception, which
+:func:`served_bytes` corrects. ``frontend.css`` declares each font twice: once
+correctly (``url(assets/Roboto.woff2)``, relative to the stylesheet) and again,
+from stylesheets compiled deeper in Perfetto's source tree, as
+``url(../assets/assets/Roboto.woff2)``, ``url(../../assets/assets/…)`` and
+``url(../../../../assets/assets/…)``. Those resolve OUTSIDE the release directory
+(``/assets/assets/…`` -- a 404 on ``ui.perfetto.dev`` itself too) and here to
+``<base>/assets/assets/…`` and ``<origin>/assets/assets/…``: outside ``/perfetto/``
+and, for the second, outside the workbench altogether. No directory layout reaches
+both depths, so the stylesheet is served with those URLs pointed back at the
+bundle's own ``assets/`` file -- only for files that exist there. The file on disk
+stays byte-for-byte the verified one; the correction is applied as it is served.
+
+Served from the workbench's own origin, a posted trace is trusted without
+Perfetto's "Open trace?" prompt (Perfetto trusts ``window.origin``);
+``ui.perfetto.dev`` asks once per origin.
 """
 
 from __future__ import annotations
@@ -43,6 +56,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -171,6 +185,38 @@ _MIME = {
 
 def mime_for(rel: str) -> str:
     return _MIME.get(Path(rel).suffix.lower(), "application/octet-stream")
+
+
+#: A font URL in ``frontend.css`` that climbs out of the release directory (see the
+#: module docstring): any number of ``../`` then ``assets/assets/<file>``.
+_ESCAPING_ASSET_URL = re.compile(
+    r"""url\((?P<q>['"]?)(?:\.\./)+assets/assets/(?P<name>[A-Za-z0-9_-][A-Za-z0-9_.-]*)(?P=q)\)""")
+
+
+def fix_stylesheet(css: str, bundle: Path) -> str:
+    """``css`` with every escaping ``…/assets/assets/<file>`` URL pointed at the bundle's
+    ``assets/<file>`` (relative to the stylesheet, as the correct declarations already are).
+    A URL naming a file the bundle does not have is left alone -- the rewrite only ever
+    points at files that are in the verified bundle."""
+    assets = bundle / "assets"
+
+    def _sub(m: "re.Match[str]") -> str:
+        name = m.group("name")
+        if not (assets / name).is_file():
+            return m.group(0)
+        q = m.group("q")
+        return f"url({q}assets/{name}{q})"
+
+    return _ESCAPING_ASSET_URL.sub(_sub, css)
+
+
+def served_bytes(rel: str, target: Path) -> Optional[bytes]:
+    """The body to serve for the bundle file ``target`` when it differs from the file,
+    else ``None`` (serve the file as-is). Only a top-level stylesheet differs: see
+    :func:`fix_stylesheet`."""
+    if "/" in rel or not rel.endswith(".css"):
+        return None
+    return fix_stylesheet(target.read_text(encoding="utf-8"), target.parent).encode("utf-8")
 
 
 # --------------------------------------------------------------------------- fetch

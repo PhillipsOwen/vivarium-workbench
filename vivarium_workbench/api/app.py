@@ -4080,6 +4080,12 @@ def create_app() -> FastAPI:
             return Response(status_code=404)
         name = rel or "index.html"
         cache = "no-store" if name.endswith(".html") else "public, max-age=86400"
+        # frontend.css is served with its out-of-bundle font URLs corrected
+        # (``perfetto_ui.fix_stylesheet``); every other file verbatim.
+        body = _perfetto_ui.served_bytes(name, target)
+        if body is not None:
+            return Response(content=body, media_type=_perfetto_ui.mime_for(name),
+                            headers={"Cache-Control": cache})
         return FileResponse(target, media_type=_perfetto_ui.mime_for(name),
                             headers={"Cache-Control": cache})
 
@@ -7203,15 +7209,24 @@ def create_app() -> FastAPI:
 
         200 with the bytes verbatim (``application/json``); 400 bad id; 409 when
         viva-api does not advertise ``viva-v1-trace``; 404 passed through (no such
-        run / no trace yet); 502 viva-api unreachable."""
+        run / no trace yet); 502 viva-api unreachable.
+
+        A 200 carries ``X-Trace-Events: <n>``, the number of non-metadata events,
+        whenever it is known (``remote_trace.count_trace_events``): ``0`` means the
+        run recorded nothing, and the frontend says so instead of opening an empty
+        Perfetto."""
         from vivarium_workbench.lib import remote_trace as _remote_trace
         body, status, filename = _remote_trace.fetch_trace(
             _remote_trace.make_client(), simulation_id=simulation_id,
             composite_run_id=composite_run_id, compose_id=compose_id)
         if isinstance(body, bytes):
+            headers = {"Content-Disposition": f'inline; filename="{filename}"',
+                       "Cache-Control": "no-store"}
+            n_events = _remote_trace.count_trace_events(body)
+            if n_events is not None:
+                headers[_remote_trace.TRACE_EVENTS_HEADER] = str(n_events)
             return Response(content=body, status_code=status, media_type="application/json",
-                            headers={"Content-Disposition": f'inline; filename="{filename}"',
-                                     "Cache-Control": "no-store"})
+                            headers=headers)
         return JSONResponse(status_code=status, content=body)
 
     @app.post("/api/remote-run-pinned-build",tags=["Runs"], status_code=202,

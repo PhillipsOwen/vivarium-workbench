@@ -174,3 +174,78 @@ def test_resolve_asset_returns_the_resolved_path_inside_the_bundle(installed):
 def test_route_404_without_bundle(tmp_path, monkeypatch, rc):
     monkeypatch.setenv("VIVARIUM_WORKBENCH_PERFETTO_UI_DIR", str(tmp_path / "absent"))
     assert rc.get("/perfetto/").status_code == 404
+
+
+# ------------------------------------------------ frontend.css: out-of-bundle font URLs
+
+#: The shape of the pinned release's frontend.css: the correct declaration, then the
+#: duplicates compiled deeper in Perfetto's tree whose URLs climb out of the release dir.
+BROKEN_CSS = (
+    '@font-face{font-family:"Roboto";src:url(assets/Roboto.woff2) format("woff2")}\n'
+    '@font-face{font-family:"Roboto";src:url(../assets/assets/Roboto.woff2) format("woff2")}\n'
+    '@font-face{font-family:"Roboto";src:url(../../assets/assets/Roboto.woff2) format("woff2")}\n'
+    "@font-face{font-family:'Roboto';src:url('../../../../assets/assets/Roboto.woff2')}\n"
+    '@font-face{font-family:"X";src:url(../assets/assets/NotInBundle.woff2)}\n'
+    '.chev{background:url("data:image/svg+xml,%3Csvg%3E")}\n'
+)
+
+
+@pytest.fixture
+def installed_with_css(tmp_path, fake_release, monkeypatch):
+    """A bundle whose frontend.css has the pinned release's escaping font URLs -- and is
+    verified like every other resource (it is in the manifest)."""
+    files = dict(fake_release["files"])
+    files["frontend.css"] = BROKEN_CSS.encode()
+    root = fake_release["root"]
+    manifest = json.dumps({"resources": {k: _sri(v) for k, v in files.items()}}).encode()
+    served = dict(fake_release["served"])
+    served[root + "manifest.json"] = manifest
+    served[root + "frontend.css"] = files["frontend.css"]
+    monkeypatch.setattr(perfetto_ui, "MANIFEST_SHA256", hashlib.sha256(manifest).hexdigest())
+    dest = tmp_path / "pf"
+    perfetto_ui.fetch_bundle(dest, opener=served.__getitem__)
+    monkeypatch.setenv("VIVARIUM_WORKBENCH_PERFETTO_UI_DIR", str(dest))
+    return dest
+
+
+def test_stylesheet_font_urls_point_back_into_the_bundle(installed_with_css, rc):
+    r = rc.get("/perfetto/frontend.css")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/css")
+    css = r.text
+    # Every escaping URL to a font the bundle has now names the bundle's own copy ...
+    assert "assets/assets/Roboto.woff2" not in css
+    assert css.count("url(assets/Roboto.woff2)") == 3
+    assert "url('assets/Roboto.woff2')" in css            # quotes kept
+    # ... a font the bundle lacks is left alone (the rewrite only points at verified files),
+    assert "url(../assets/assets/NotInBundle.woff2)" in css
+    assert 'url("data:image/svg+xml,%3Csvg%3E")' in css   # other URLs untouched
+    # ... and the rewritten URL is served, from inside the bundle.
+    assert rc.get("/perfetto/assets/Roboto.woff2").content == b"font"
+
+
+def test_stylesheet_on_disk_stays_the_verified_file(installed_with_css, rc):
+    """The correction is applied as it is served: the file keeps the manifest's hash."""
+    rc.get("/perfetto/frontend.css")
+    on_disk = (installed_with_css / "frontend.css").read_bytes()
+    assert on_disk == BROKEN_CSS.encode()
+    manifest = json.loads((installed_with_css / "manifest.json").read_text())
+    assert _sri(on_disk) == manifest["resources"]["frontend.css"]
+
+
+def test_only_the_top_level_stylesheet_is_rewritten(installed_with_css):
+    target = installed_with_css / "frontend_bundle.js"
+    assert perfetto_ui.served_bytes("frontend_bundle.js", target) is None
+    assert perfetto_ui.served_bytes("assets/x.css", installed_with_css / "assets" / "x.css") is None
+
+
+def test_fix_stylesheet_never_names_a_path_outside_assets(tmp_path):
+    (tmp_path / "assets").mkdir()
+    css = "a{src:url(../assets/assets/..)} b{src:url(../../assets/assets/.hidden)}"
+    assert perfetto_ui.fix_stylesheet(css, tmp_path) == css
+
+
+def test_traversal_still_refused_by_the_route(installed_with_css, rc):
+    for path in ("/perfetto/..%2F..%2Fsecret", "/perfetto/assets/..%2F..%2Fsecret"):
+        assert rc.get(path).status_code in (403, 404)
+    with pytest.raises(perfetto_ui.AssetTraversal):
+        perfetto_ui.resolve_asset("assets/../../secret")
