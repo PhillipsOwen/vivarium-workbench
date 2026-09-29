@@ -2501,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "vivarium-workbench"
-version = "0.3.90"
+version = "0.3.91"
 source = { editable = "." }
 dependencies = [
     { name = "bigraph-schema" },
