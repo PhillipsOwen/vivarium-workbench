@@ -75,3 +75,20 @@ editable sibling checkouts:
 # layout: <dir>/vivarium-workbench, <dir>/v2ecoli, <dir>/pbg-ptools
 cd demos/v2ecoli && uv sync
 ```
+
+## Bumping the bundled Perfetto UI
+
+The trace viewer (`lib/perfetto_ui.py`) pins one Perfetto UI release by version
+plus three SHA-256s (its `index.html`, its `manifest.json` — which carries a hash
+for every other file — and Perfetto's `LICENSE`). To move to a newer release, set
+`PERFETTO_UI_VERSION` / `PERFETTO_UI_COMMIT` to a `ui.perfetto.dev/<version>/`
+build, run `python -m vivarium_workbench.lib.perfetto_ui --print-hashes`, paste
+the three hashes, and check the "Open trace" flow still works (the postMessage
+protocol is Perfetto's public API, but verify it).
+
+Also re-check that analytics stay off. The workbench opens Perfetto with `?testing=1`
+(`static/perfetto-open.js`, `NO_ANALYTICS_QUERY`) because Perfetto loads Google Analytics
+on `http://localhost:` / `http://127.0.0.1:` / `*.perfetto.dev` origins — which is how users
+reach the workbench through an SSM tunnel. Grep the new `frontend_bundle.js` for
+`createEmbedder` / `initAnalytics` and confirm testing mode still disables them (and still
+does nothing else user-visible).

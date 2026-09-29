@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 
@@ -905,6 +905,36 @@ class SmsApiClient:
         simulation exists but isn't a chain-dispatch campaign (nothing to
         aggregate — callers should use ``simulation_status`` for those)."""
         return self._get(f"/api/v1/simulations/{simulation_id}/chain-progress")
+
+    def simulation_trace(self, simulation_id: int) -> bytes:
+        """GET /api/v1/simulations/{id}/trace -- the run's trace as a Chrome Trace
+        Event JSON document, returned as the raw bytes (never parsed: it goes
+        straight to the browser's Perfetto). Gated by ``viva-v1-trace``; callers
+        check the capability (``lib.remote_trace``)."""
+        return self._get_bytes(f"/api/v1/simulations/{simulation_id}/trace")
+
+    def composite_run_trace(self, run_id: str) -> bytes:
+        """GET /viva/v1/composites/{id}/trace -- a composite run's trace (same
+        format as :meth:`simulation_trace`). ``run_id`` is the composite run id,
+        which for a ``/compose/v1`` submission is its ``correlation_id``."""
+        return self._get_bytes(f"/viva/v1/composites/{quote(str(run_id), safe='')}/trace")
+
+    def _get_bytes(self, path: str, accept: str = "application/json") -> bytes:
+        """GET ``path`` and return the body undecoded. One attempt: a trace is
+        assembled on demand server-side and the caller is a person clicking."""
+        self._link().check(force=self.force_link)
+        url = self.base_url + self._path(path)
+        req = Request(url, method="GET", headers=self._headers(accept))
+        try:
+            with urlopen(req, timeout=self.timeout) as r:  # noqa: S310 — fixed scheme, internal tunnel
+                body = bytes(r.read())
+        except HTTPError as e:
+            raise SmsApiError(f"GET {url} -> {e.code}{_http_error_detail(e)}", status=e.code) from e
+        except (URLError, OSError) as e:
+            self._mark_link_down(str(e))
+            raise SmsApiError(f"GET {url} failed (sms-api unreachable — is the tunnel up?): {e}") from e
+        self._mark_link_up()
+        return body
 
     def _delete(self, path: str) -> dict:
         url = self.base_url + self._path(path)

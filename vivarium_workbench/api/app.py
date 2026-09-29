@@ -38,7 +38,7 @@ _error_logger = logging.getLogger("vivarium_workbench.errors")
 from fastapi import Body, Depends, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import ValidationError
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -4057,6 +4057,43 @@ def create_app() -> FastAPI:
         return _serve_static_file(target, name)
 
     @app.get(
+        "/perfetto/{rel:path}",
+        tags=["Static & shell"],
+        summary="The bundled Perfetto trace-viewer UI (404 when not installed)",
+        response_class=Response,
+        include_in_schema=False,
+    )
+    def perfetto_ui_asset(rel: str = "") -> Response:
+        """Serve the pinned Perfetto UI bundle (``lib.perfetto_ui``).
+
+        404 when no bundle is installed (``viewer.mode`` is then not ``bundled``
+        and the frontend never links here), 403 on a ``..`` segment. The bundle is
+        versioned and immutable, so it is cacheable -- unlike the workbench's own
+        assets -- except ``index.html``, which names no version. ``.wasm`` is
+        served as ``application/wasm`` (streaming compilation requires it)."""
+        from vivarium_workbench.lib import perfetto_ui as _perfetto_ui
+        try:
+            target = _perfetto_ui.resolve_asset(rel)
+        except _perfetto_ui.AssetTraversal:
+            return Response(status_code=403)
+        if target is None or not target.is_file():
+            return Response(status_code=404)
+        name = rel or "index.html"
+        cache = "no-store" if name.endswith(".html") else "public, max-age=86400"
+        return FileResponse(target, media_type=_perfetto_ui.mime_for(name),
+                            headers={"Cache-Control": cache})
+
+    @app.get(
+        "/perfetto",
+        include_in_schema=False,
+    )
+    def perfetto_ui_root(request: Request) -> Response:
+        """``/perfetto`` → ``/perfetto/``: the bundle loads its files relative to
+        the directory, so the trailing slash matters."""
+        base_path = request.scope.get("root_path") or ""
+        return RedirectResponse(url=f"{base_path}/perfetto/", status_code=307)
+
+    @app.get(
         "/parsimony-viewer/{rel:path}",
         tags=["Static & shell"],
         summary="pbg_parsimony 3D viewer bundle asset (404 when not installed)",
@@ -7140,7 +7177,44 @@ def create_app() -> FastAPI:
         body, status = _remote_run_views.remote_run_cancel(req or {})
         return JSONResponse(status_code=status, content=body)
 
-    @app.post("/api/remote-run-pinned-build", tags=["Runs"], status_code=202,
+    @app.get("/api/remote-run-trace-support", tags=["Runs"],
+             summary="Whether viva-api serves run traces (viva-v1-trace), and which Perfetto UI to open")
+    def remote_run_trace_support() -> JSONResponse:
+        """``{supported, reason, capability, server_version?, viewer: {mode, url, version}}``.
+
+        The frontend calls this once and shows the "⏱ Trace" action only when
+        ``supported`` (viva-api advertises ``viva-v1-trace``). ``viewer.mode`` is
+        ``bundled`` (Perfetto served by this server at ``viewer.url`` under the
+        base path), ``external`` (an absolute Perfetto URL) or ``off`` (the action
+        downloads the JSON). See ``lib.remote_trace`` and ``lib.perfetto_ui``."""
+        from vivarium_workbench.lib import remote_trace as _remote_trace
+        body, status = _remote_trace.trace_support(_remote_trace.make_client())
+        return JSONResponse(status_code=status, content=body)
+
+    @app.get("/api/remote-run-trace", tags=["Runs"], response_class=Response,
+             summary="Proxy a remote run's Chrome Trace Event JSON from viva-api (for Perfetto)")
+    def remote_run_trace(simulation_id: Union[str, None] = None,
+                         composite_run_id: Union[str, None] = None,
+                         compose_id: Union[str, None] = None) -> Response:
+        """The trace of exactly one of ``simulation_id`` (viva-api
+        ``/api/v1/simulations/{id}/trace``), ``composite_run_id``
+        (``/viva/v1/composites/{id}/trace``) or ``compose_id`` (a ``/compose/v1``
+        submission, resolved to its composite run by ``correlation_id``).
+
+        200 with the bytes verbatim (``application/json``); 400 bad id; 409 when
+        viva-api does not advertise ``viva-v1-trace``; 404 passed through (no such
+        run / no trace yet); 502 viva-api unreachable."""
+        from vivarium_workbench.lib import remote_trace as _remote_trace
+        body, status, filename = _remote_trace.fetch_trace(
+            _remote_trace.make_client(), simulation_id=simulation_id,
+            composite_run_id=composite_run_id, compose_id=compose_id)
+        if isinstance(body, bytes):
+            return Response(content=body, status_code=status, media_type="application/json",
+                            headers={"Content-Disposition": f'inline; filename="{filename}"',
+                                     "Cache-Control": "no-store"})
+        return JSONResponse(status_code=status, content=body)
+
+    @app.post("/api/remote-run-pinned-build",tags=["Runs"], status_code=202,
               summary="Pinned phase 1: resolve the latest built simulator (no push/login)")
     def remote_run_pinned_build(
         req: Union[dict, None] = Body(default=None),
