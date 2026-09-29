@@ -156,6 +156,21 @@ def test_route_rejects_traversal(installed):
         perfetto_ui.resolve_asset("../secret")
 
 
+def test_resolve_asset_refuses_a_symlink_out_of_the_bundle(installed, tmp_path):
+    """Allowlist (Eran's #1214 review): the resolved file must lie inside the bundle -- a
+    symlink in the bundle pointing elsewhere is refused, not served."""
+    secret = tmp_path / "secret.txt"
+    secret.write_text("not for the browser")
+    (installed / "escape.js").symlink_to(secret)
+    with pytest.raises(perfetto_ui.AssetTraversal):
+        perfetto_ui.resolve_asset("escape.js")
+
+
+def test_resolve_asset_returns_the_resolved_path_inside_the_bundle(installed):
+    p = perfetto_ui.resolve_asset("frontend_bundle.js")
+    assert p is not None and p.is_relative_to(installed.resolve()) and p.is_file()
+
+
 def test_route_404_without_bundle(tmp_path, monkeypatch, rc):
     monkeypatch.setenv("VIVARIUM_WORKBENCH_PERFETTO_UI_DIR", str(tmp_path / "absent"))
     assert rc.get("/perfetto/").status_code == 404

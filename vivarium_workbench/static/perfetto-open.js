@@ -71,8 +71,13 @@
     return viewer.url;
   }
 
+  // The origin trace bytes may be posted to, or null. Never '*': an unparseable viewer URL
+  // must stop the post, not broadcast the trace to whatever origin that window holds.
   function _originOf(url) {
-    try { return new URL(url).origin; } catch (e) { return '*'; }
+    try {
+      var o = new URL(url).origin;
+      return (o && o !== 'null') ? o : null;
+    } catch (e) { return null; }
   }
 
   // PING `win` until it answers PONG, then post the trace. Resolves true once
@@ -85,6 +90,7 @@
     var clearI = env.clearInterval || global.clearInterval;
     var now = env.now || function () { return Date.now(); };
     var target = _originOf(targetUrl);
+    if (!target) return Promise.resolve(false);   // no known origin -> post nothing
     return new Promise(function (resolve) {
       var started = now();
       var timer = null;
@@ -96,7 +102,7 @@
       }
       function onMsg(ev) {
         if (ev.source !== win || ev.data !== 'PONG') return;
-        if (target !== '*' && ev.origin !== target) return;
+        if (ev.origin !== target) return;
         win.postMessage({ perfetto: {
           buffer: buffer,
           title: meta.title,

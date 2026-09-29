@@ -89,6 +89,18 @@ async function testIgnoresPongFromElsewhere() {
   assert.strictEqual(await p, false, 'times out');
 }
 
+async function testUnparseableViewerUrlPostsNothing() {
+  // Eran's #1214 review: never fall back to '*' -- an unknown origin posts nothing.
+  const b = bus(); const c = clock();
+  const w = perfettoWindow(b, 'https://ui.perfetto.dev'); w.loaded = true;
+  const p = P.postTrace(w, '/perfetto/', new ArrayBuffer(1), { title: 'T' },
+    { listenOn: b, setInterval: c.setInterval, clearInterval: c.clearInterval, now: c.now });
+  c.tick();
+  assert.strictEqual(await p, false, 'gives up at once');
+  assert.strictEqual(w.posted.length, 0, 'not even a PING to an unknown origin');
+  assert.strictEqual(b.count(), 0, 'no listener left behind');
+}
+
 async function testClosedWindowGivesUp() {
   const b = bus(); const c = clock();
   const w = perfettoWindow(b, 'https://ui.perfetto.dev');
@@ -173,7 +185,7 @@ async function testSnapshotNeverAsks() {
 
 (async () => {
   for (const t of [testViewerUrl, testPingUntilPongThenPost, testIgnoresPongFromElsewhere,
-    testClosedWindowGivesUp, testOpenTraceBundledEndToEnd, testOpenTraceErrorClosesWindow,
+    testClosedWindowGivesUp, testUnparseableViewerUrlPostsNothing, testOpenTraceBundledEndToEnd, testOpenTraceErrorClosesWindow,
     testSnapshotNeverAsks]) {
     await t();
     console.log('ok -', t.name);

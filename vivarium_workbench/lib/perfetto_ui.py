@@ -144,9 +144,16 @@ def resolve_asset(rel: str) -> Optional[Path]:
     if ".." in rel.split("/") or rel.startswith("/"):
         raise AssetTraversal(rel)
     d = bundle_dir()
+    # Allowlist, not just the denylist above: whatever ``rel`` is, the file it names must
+    # resolve INSIDE the bundle directory -- which also stops a symlink in the bundle from
+    # pointing out of it, and keeps holding if the join logic ever changes.
+    root = d.resolve()
+    target = (root / rel).resolve()
+    if not target.is_relative_to(root):
+        raise AssetTraversal(rel)
     if installed_version(d) is None:
         return None
-    return d / rel
+    return target
 
 
 _MIME = {
