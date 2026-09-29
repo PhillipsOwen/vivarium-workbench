@@ -1,22 +1,15 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><title>host_ws</title>
-<link rel="stylesheet" href="assets/style.css?v=1790625725_1790625725">
+<link rel="stylesheet" href="assets/style.css?v=1787973839_1787962322">
 <link rel="stylesheet" href="assets/snapshot-readonly.css">
 <!-- Apply the saved light/dark theme before first paint (no flash of light). -->
 <script>(function(){try{var t=localStorage.getItem('viv.theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
-<!-- item 41: when this tab was spawned via ?workspace=/?build= (workspace-picker.js's
-     openWs()), the first paint would otherwise render the WRONG (default) workspace for
-     the ~seconds session.js's bootstrapSpawn() takes to bind + reload. Stamp the boot
-     attribute synchronously, before first paint, so CSS below can hide that wrong paint
-     behind a full-page overlay instead. Mirrors the theme script above (sync, pre-paint,
-     read-only of location.search — no coupling to session.js's own param parsing). -->
-<script>(function(){try{var p=new URLSearchParams(window.location.search||"");if(p.get('workspace')||p.get('build'))document.documentElement.setAttribute('data-ws-boot','1');}catch(e){}})();</script>
 <!-- Per-tab session identity (session-per-tab). Loaded FIRST, as a classic
      blocking script, so the window.fetch override is in place before any other
      script or inline fetch runs — every same-origin request then carries this
      tab's X-VW-Session header. -->
-<script src="assets/session.js?v=1790625725_1790625725"></script>
+<script src="assets/session.js?v=1787973839_1787962322"></script>
 <script>
 // Per-workspace branding (rail logo, title, brand text) is resolved
 // server-side at GET / and is NOT re-applied by any client script. The
@@ -39,55 +32,6 @@ window.addEventListener('pageshow', function (e) {
 <script src="https://cdn.jsdelivr.net/npm/d3-voronoi-treemap@1"></script>
 <script src="https://unpkg.com/escher@1.7.3/dist/escher.min.js"></script>
 <style>
-/* item 41: workspace-spawn boot overlay. Shown only via the [data-ws-boot="1"]
- * attribute the pre-paint script above stamps on <html> — never toggled by JS,
- * so it can't collide with walkthrough.js's document-level "click a
- * .modal-overlay backdrop to dismiss" handler (deliberately a DIFFERENT class
- * from .modal-overlay for that reason; this overlay must not be
- * click-dismissible mid-bind). session.js clears the attribute on a failed
- * bind; a successful bind reloads the page, which re-runs the pre-paint
- * script and finds no ?workspace=/?build= left (already stripped), so no
- * explicit "success" removal is needed.
- */
-html:not([data-ws-boot]) #viv-boot-overlay { display: none; }
-#viv-boot-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-}
-:root[data-theme="dark"] #viv-boot-overlay { background: var(--surface, #1b1420); }
-.viv-boot-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-.viv-boot-spinner {
-  width: 34px;
-  height: 34px;
-  border: 3px solid rgba(0,0,0,0.12);
-  border-top-color: #157a70;
-  border-radius: 50%;
-  animation: viv-boot-spin 0.8s linear infinite;
-}
-:root[data-theme="dark"] .viv-boot-spinner {
-  border-color: rgba(255,255,255,0.16);
-  border-top-color: #2dd4bf;
-}
-@keyframes viv-boot-spin { to { transform: rotate(360deg); } }
-.viv-boot-label {
-  font: 14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;
-  color: #374151;
-}
-:root[data-theme="dark"] .viv-boot-label { color: var(--text, #e5e7eb); }
-@media (prefers-reduced-motion: reduce) {
-  .viv-boot-spinner { animation: none; opacity: 0.85; }
-}
-
 /* Modal overlay */
 .modal-overlay {
   display: none;
@@ -587,7 +531,7 @@ body.snapshot .viv-wsp-trigger .viv-wsp-dot { color: #94a3b8; }
 .viv-bs-select:focus, .viv-bs-commit-select:focus, .viv-bs-search:focus {
   outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.12);
 }
-/* Environment: a segmented Local/Cloud control. */
+/* Scope: a segmented Local/Remote control. */
 .viv-bs-scope-group { display: inline-flex; }
 .viv-bs-toggle {
   padding: 5px 14px; border: 1px solid #e2e8f0; background: #f1f5f9; cursor: pointer;
@@ -747,16 +691,6 @@ a.viv-bs-commit:hover { text-decoration: underline; }
 </style>
 </head><body>
 
-<!-- item 41: hidden unless <html data-ws-boot="1"> (set pre-paint, above, when this
-     tab was spawned via ?workspace=/?build=). Covers the wrong first paint while
-     session.js's bootstrapSpawn() binds the real workspace. -->
-<div id="viv-boot-overlay" role="status" aria-live="polite">
-  <div class="viv-boot-box">
-    <div class="viv-boot-spinner" aria-hidden="true"></div>
-    <div class="viv-boot-label">Opening workspace…</div>
-  </div>
-</div>
-
 <div class="viv-layout">
 
   <!-- LEFT RAIL -->
@@ -765,23 +699,15 @@ a.viv-bs-commit:hover { text-decoration: underline; }
     <!-- Brand: fixed Vivarium logo + name (no per-workspace icon/name override). -->
     <div class="viv-rail-header">
       <a class="viv-rail-brand-link" href="#about" title="About Vivarium Workbench">
-        <img class="viv-rail-logo" src="assets/vivarium-logo.png?v=1790625725_1790625725" alt="Vivarium" loading="lazy"
-             data-light-src="assets/vivarium-logo.png?v=1790625725_1790625725"
-             data-dark-src="assets/vivarium-logo-dark.png?v=1790625725_1790625725"
+        <img class="viv-rail-logo" src="assets/vivarium-logo.png?v=1787973839_1787962322" alt="Vivarium" loading="lazy"
+             data-light-src="assets/vivarium-logo.png?v=1787973839_1787962322"
+             data-dark-src="assets/vivarium-logo-dark.png?v=1787973839_1787962322"
              onerror="if(this.dataset.lightSrc&&this.src.indexOf('logo-dark')>=0){this.src=this.dataset.lightSrc;}">
         <div class="viv-rail-brand">
           <strong>Vivarium</strong>
           <small>workbench</small>
         </div>
       </a>
-      <!-- Study search — a magnifier next to the collapse toggle; click to reveal
-           the search field below the nav (see _vivToggleRailSearch). -->
-      <button class="viv-rail-toggle viv-rail-search-btn" id="viv-rail-search-btn" type="button" aria-label="Search studies" title="Search studies" onclick="_vivToggleRailSearch()">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="viv-rail-toggle-svg">
-          <circle cx="11" cy="11" r="7"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-      </button>
       <!-- Rail collapse/expand toggle. Lives in the header so, when collapsed, it
            can overlay the logo and reveal on hover (see .viv-rail-collapsed CSS). -->
       <button class="viv-rail-toggle" id="viv-rail-toggle" type="button" aria-label="Collapse sidebar" title="Collapse sidebar" onclick="_vivToggleRail()">
@@ -807,7 +733,7 @@ a.viv-bs-commit:hover { text-decoration: underline; }
           <span class="viv-wsp-dot viv-wsp-ready">●</span>
           <span class="viv-wsp-trigger-names">
             <strong>host_ws</strong>
-            <span class="viv-wsp-trigger-branch" title="branch: chore/standalone-lock">chore/standalone-lock</span>
+            <span class="viv-wsp-trigger-branch" title="branch: fix/subprocess-script-encoding">fix/subprocess-script-encoding</span>
           </span>
         </span>
         <span class="viv-wsp-trigger-caret" aria-hidden="true">▾</span>
@@ -897,7 +823,7 @@ a.viv-bs-commit:hover { text-decoration: underline; }
             <path d="M20 9.5 L22.5 12 L20 14.5"/>
           </svg>
         </span>
-        <span class="viv-rail-link-label">Registry</span>
+        <span class="viv-rail-link-label">Modules</span>
       </a>
       <!-- Studies: the investigations overview. Sits directly under Composites; the
            per-investigation study list lives in the search section below. Branching-fan (DAG) icon. -->
@@ -954,15 +880,15 @@ a.viv-bs-commit:hover { text-decoration: underline; }
 
     <!-- Studies of the active investigation, dependency-ordered. -->
     <div class="viv-rail-section" id="viv-rail-studies-section">
-      <!-- Sticky header: the search field (hidden until the header magnifier is
-           clicked) stays pinned at the top of the scroll region while the study
-           list scrolls beneath it. Lives OUTSIDE #viv-rail-investigations (which
-           re-renders on every keystroke) so the input keeps focus. -->
-      <div class="viv-rail-studies-head" id="viv-rail-studies-head" hidden>
+      <!-- Sticky header: the label + search stay pinned at the top of the scroll
+           region while the study list scrolls beneath them. -->
+      <div class="viv-rail-studies-head">
+        <!-- Live study search: filters the grouped-by-investigation list below.
+             Lives OUTSIDE #viv-rail-investigations (which is re-rendered on every
+             keystroke) so the input keeps focus. -->
         <input id="viv-rail-study-search" type="search" placeholder="Search studies…"
                autocomplete="off" spellcheck="false" aria-label="Search studies"
                oninput="window._filterRailStudies && window._filterRailStudies(this.value)"
-               onkeydown="if(event.key==='Escape'){_vivToggleRailSearch(false);}"
                style="width:calc(100% - 24px);margin:2px 12px 6px;padding:4px 8px;font-size:0.82em;
                       color:#374151;border:1px solid #e5e7eb;border-radius:4px;background:#fff;box-sizing:border-box;" />
       </div>
@@ -1026,7 +952,7 @@ a.viv-bs-commit:hover { text-decoration: underline; }
        Single source of truth for the datasets/references/expert-docs lists;
        the management panels below provide the add/edit actions + bib explorer. -->
   <div id="inputs-api-render" class="panel">
-    <p class="muted" style="font-style:italic">Loading…</p>
+    <p class="muted" style="font-style:italic">Loading inputs…</p>
   </div>
 
 </section>
@@ -1037,9 +963,9 @@ a.viv-bs-commit:hover { text-decoration: underline; }
     <div class="about-page">
 
       <header class="about-hero">
-        <img class="about-logo" src="assets/vivarium-logo.png?v=1790625725_1790625725" alt="Vivarium"
-             data-light-src="assets/vivarium-logo.png?v=1790625725_1790625725"
-             data-dark-src="assets/vivarium-logo-dark.png?v=1790625725_1790625725"
+        <img class="about-logo" src="assets/vivarium-logo.png?v=1787973839_1787962322" alt="Vivarium"
+             data-light-src="assets/vivarium-logo.png?v=1787973839_1787962322"
+             data-dark-src="assets/vivarium-logo-dark.png?v=1787973839_1787962322"
              onerror="if(this.dataset.lightSrc&&this.src.indexOf('logo-dark')>=0){this.src=this.dataset.lightSrc;}">
         <div class="about-hero-text">
           <h1>Vivarium&nbsp;Workbench</h1>
@@ -1109,7 +1035,7 @@ a.viv-bs-commit:hover { text-decoration: underline; }
 <section id="page-visualizations" class="page" data-page="visualizations">
   <div class="panel">
     <div id="analyses-gallery" class="analyses-gallery">
-      <p class="empty-state">Loading&hellip;</p>
+      <p class="empty-state">Loading saved visualizations&hellip;</p>
     </div>
   </div>
 
@@ -1207,14 +1133,13 @@ a.viv-bs-commit:hover { text-decoration: underline; }
         <button class="registry-tab"        data-kind="emitter"       onclick="_setRegistryTab('emitter')">Emitters <span class="count-badge" id="registry-emitter-count"></span></button>
         <button class="registry-tab"        data-kind="visualization" onclick="_setRegistryTab('visualization')">Visualizations <span class="count-badge" id="registry-visualization-count"></span></button>
         <button class="registry-tab"        data-kind="analysis"      onclick="_setRegistryTab('analysis')">Analyses <span class="count-badge" id="registry-analysis-count"></span></button>
-        <button class="registry-tab"        data-kind="report_card"   onclick="_setRegistryTab('report_card')">Tests <span class="count-badge" id="registry-report_card-count"></span></button>
+        <button class="registry-tab"        data-kind="report_card"   onclick="_setRegistryTab('report_card')">Report Cards <span class="count-badge" id="registry-report_card-count"></span></button>
         <button class="registry-tab"        data-kind="type"          onclick="_setRegistryTab('type')">Types <span class="count-badge" id="registry-type-count"></span></button>
         <button class="icon-btn" onclick="_loadRegistry(true)" title="Refresh registry" aria-label="Refresh registry" style="margin-left:auto;align-self:center">&#8635;</button>
       </div>
 
       <div class="registry-view-toolbar">
         <input type="search" class="registry-search viv-search" id="registry-search" placeholder="Search&hellip;" oninput="_filterRegistry(this.value)">
-        <span class="registry-new-actions" id="registry-new-actions"></span>
         
         <span class="cols-ctl-slot" data-cols-surface="registry" title="Cards columns"></span>
         <div class="registry-zoom" role="group" aria-label="View density" title="View density">
@@ -1318,6 +1243,7 @@ a.viv-bs-commit:hover { text-decoration: underline; }
         <option value="studies_asc">Fewest studies</option>
         <option value="recent">Recently updated</option>
       </select>
+      <span id="iset-list-tip" style="margin-left:auto">Tip: click a card's <strong>studies</strong> count to expand it.</span>
     </div>
   </div>
 
@@ -1520,71 +1446,6 @@ a.viv-bs-commit:hover { text-decoration: underline; }
 <!-- GitHub: in-UI sign-in + (future) org picker. The github-login.js widget
      activates the #viv-gh-chip element on load. No-AI-agent setup path. -->
 <section id="page-github" class="page" data-page="github">
-  <!-- Self-explanatory intro: what the two cards below are for and how the
-       verbs work. Collapsible (native <details>), open by default; the small
-       script at the end of the section remembers the collapsed state. -->
-  <style>
-    .viv-source-help { border:1px solid #e5e9ef; border-radius:12px; background:#f7f9fc;
-      padding:0 16px; margin:0 0 16px; font-size:13px; color:#374151 }
-    .viv-source-help > summary { cursor:pointer; list-style:none; padding:12px 2px;
-      font-weight:650; color:#1f2937; display:flex; align-items:center; gap:8px }
-    .viv-source-help > summary::-webkit-details-marker { display:none }
-    .viv-source-help > summary::before { content:"▸"; color:#93a1b5; transition:transform .15s }
-    .viv-source-help[open] > summary::before { transform:rotate(90deg) }
-    .viv-source-help-body { padding:0 2px 14px }
-    .viv-source-help-body > p { margin:0 0 12px; color:#4b5563 }
-    .viv-help-cols { display:grid; grid-template-columns:1fr 1fr; gap:24px }
-    @media (max-width:720px) { .viv-help-cols { grid-template-columns:1fr } }
-    .viv-help-cols h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase;
-      letter-spacing:.05em; color:#6b7280 }
-    .viv-help-cols ul { margin:0; padding-left:16px }
-    .viv-help-cols li { margin:0 0 6px; line-height:1.5; color:#4b5563 }
-    .viv-help-cols code, .viv-source-help code { background:#eef1f5; border-radius:4px; padding:0 4px; font-size:.92em }
-    :root[data-theme="dark"] .viv-source-help { background:var(--panel-2,#1c2230); border-color:var(--border) }
-    :root[data-theme="dark"] .viv-source-help,
-    :root[data-theme="dark"] .viv-source-help-body > p,
-    :root[data-theme="dark"] .viv-help-cols li { color:var(--text-muted) }
-    :root[data-theme="dark"] .viv-source-help > summary { color:var(--text) }
-    :root[data-theme="dark"] .viv-help-cols code, :root[data-theme="dark"] .viv-source-help code { background:var(--field) }
-  </style>
-  <details id="viv-source-help" class="viv-source-help">
-    <summary>How this page works</summary>
-    <div class="viv-source-help-body">
-      <p>This page controls <strong>where this workspace runs</strong> and how your work <strong>syncs with GitHub</strong> — two separate jobs, one per card below.</p>
-      <div class="viv-help-cols">
-        <div>
-          <h4>Source — where this workspace runs</h4>
-          <ul>
-            <li><strong>Local</strong> is a workspace checked out on this machine; <strong>Cloud</strong> is a build registered on the GovCloud sms-api server.</li>
-            <li>Pick a <strong>Repo / Branch / Commit</strong> (or build), then <strong>Open ↗</strong> to open it in a new tab (instant, non-destructive), or <strong>Use this environment</strong> to re-point <em>this</em> tab to it — that downloads the cloud environment's workspace the first time (a minute or two; cached builds are instant). You don't need to use the cloud environment to view results.</li>
-            <li><strong>Build via sms-api</strong> registers a branch's current HEAD as a new cloud environment. <strong>Run locally</strong> gives you a command to recreate this exact source on your own machine.</li>
-            <li>In the build list, chips flag which build is <strong>in workspace ✓</strong>, on your <strong>workspace commit</strong>, or the <strong>latest</strong>.</li>
-          </ul>
-        </div>
-        <div>
-          <h4>GitHub — sync &amp; collaborate</h4>
-          <ul>
-            <li><strong>Account</strong> — the GitHub identity used to push (your <code>gh</code> session, or a pasted token).</li>
-            <li><strong>Branch &amp; sync</strong> — the workspace's git state: the branch vs its base, uncommitted <strong>Changes</strong> + push state, and any open pull request.</li>
-            <li><strong>Commit + Push</strong> commits every change on the branch and pushes it; <strong>Open PR</strong> starts a pull request from it.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </details>
-  <script>
-    (function () {
-      try {
-        var d = document.getElementById('viv-source-help');
-        if (!d) return;
-        if (localStorage.getItem('viv-source-help-collapsed') === '1') d.open = false;
-        d.addEventListener('toggle', function () {
-          try { localStorage.setItem('viv-source-help-collapsed', d.open ? '0' : '1'); } catch (e) {}
-        });
-      } catch (e) {}
-    })();
-  </script>
-
   <div id="viv-branch-source" class="viv-branch-source"></div>
 
   <!-- Settings-style single panel: three sections (Account, Workspace
@@ -1615,9 +1476,6 @@ a.viv-bs-commit:hover { text-decoration: underline; }
       :root[data-theme="dark"] .github-settings select.gh-input,
       :root[data-theme="dark"] .github-settings input.gh-input { border-color:var(--border-2); background:var(--field); color:var(--text) }
     </style>
-
-    <h3 class="gh-panel-title" style="margin:0 0 3px;font-size:15px;font-weight:650">GitHub</h3>
-    <div class="gh-panel-lead" style="color:#93a1b5;font-size:12px;margin:0 0 6px">Sync this workspace with GitHub — sign in, commit &amp; push, open a PR.</div>
 
     <!-- ── Account ──────────────────────────────────────────────── -->
     <div class="gh-section">
@@ -1654,20 +1512,32 @@ a.viv-bs-commit:hover { text-decoration: underline; }
       </div>
     </div>
 
-    <!-- ── Branch & sync — the workspace's git state. Repo/branch are CHOSEN in
-         the Source card above (local/remote); this card is about committing,
-         pushing, and PRs, so it shows git STATE, not the repo/branch selectors
-         again (that duplication was the confusing part). ── -->
+    <!-- ── Workspace repository — one row per fact, settings-style ── -->
     <div class="gh-section">
-      <h3 class="gh-section-title">Branch &amp; sync</h3>
+      <h3 class="gh-section-title">Workspace repository</h3>
+
+      <div class="gh-row" id="viv-gh-row-repo">
+        <div class="gh-label">Repository</div>
+        <div class="gh-value" id="viv-gh-repo"><span class="muted">loading…</span></div>
+      </div>
 
       <div class="gh-row" id="viv-gh-row-branch">
         <div class="gh-label">Branch</div>
         <div class="gh-value" id="viv-gh-branch"><span class="muted">loading…</span></div>
       </div>
 
+      <div class="gh-row" id="viv-gh-row-push-state">
+        <div class="gh-label">Push state</div>
+        <div class="gh-value" id="viv-gh-push-state"><span class="muted">loading…</span></div>
+      </div>
+
+      <div class="gh-row" id="viv-gh-row-ahead">
+        <div class="gh-label">Ahead of base</div>
+        <div class="gh-value" id="viv-gh-ahead"><span class="muted">—</span></div>
+      </div>
+
       <div class="gh-row" id="viv-gh-row-dirty">
-        <div class="gh-label">Changes</div>
+        <div class="gh-label">Working tree</div>
         <div class="gh-value" id="viv-gh-dirty"><span class="muted">—</span></div>
       </div>
 
@@ -1686,9 +1556,8 @@ a.viv-bs-commit:hover { text-decoration: underline; }
       <h3 class="gh-section-title">Actions</h3>
 
       <div class="gh-row">
-        <div class="gh-label">Sync</div>
+        <div class="gh-label">Repo &amp; branch</div>
         <div class="gh-value gh-action-row" id="viv-git-actions">
-          <button id="btn-commit-push" class="action-btn" onclick="_commitAndPush()" title="Commit all changes on this branch and push it to GitHub">Commit + Push</button>
           <button id="btn-open-pr" class="action-btn" onclick="_openPRDialog()" title="Open PR for current branch">Open PR ↗</button>
         </div>
       </div>
@@ -1784,26 +1653,9 @@ a.viv-bs-commit:hover { text-decoration: underline; }
     <button id="sim-refresh" class="icon-btn" title="Refresh" aria-label="Refresh">&#8635;</button>
   </div>
 
-  <div id="sim-loading" style="color: #6b7280; padding: 12px;">Loading…</div>
+  <div id="sim-loading" style="color: #6b7280; padding: 12px;">Loading simulations…</div>
   <div id="sim-empty"   style="color: #6b7280; padding: 12px; display: none;">
     No simulation runs found.
-  </div>
-
-  <div id="sim-controls" style="display:none; align-items:center; gap:10px;
-       padding:6px 2px; color:#6b7280; font-size:13px;">
-    <span id="sim-count">0 runs</span>
-    <span id="sim-remote-status" style="color:#9ca3af;"></span>
-    <span style="margin-left:auto;">
-      Show
-      <select id="sim-page-size" onchange="_onSimPageSizeChange()"
-              style="padding:2px 6px; font-size:13px;">
-        <option value="20">20</option>
-        <option value="50" selected>50</option>
-        <option value="100">100</option>
-        <option value="500">500</option>
-      </select>
-      at a time
-    </span>
   </div>
 
   <style>
@@ -1813,24 +1665,8 @@ a.viv-bs-commit:hover { text-decoration: underline; }
     #sim-table th[data-sort-dir="desc"]::after { content:" \25BC"; }
     /* Actions cell: let the run-action buttons wrap within a roomy column
        instead of overflowing off the right edge. */
-    #sim-table .run-actions { display:flex; flex-wrap:nowrap; gap:4px; align-items:center; justify-content:flex-start; }
+    #sim-table .run-actions { display:flex; flex-wrap:wrap; gap:4px; align-items:center; justify-content:flex-start; }
     #sim-table .run-actions .action-btn { font-size:11px; padding:2px 7px; white-space:nowrap; }
-    /* Row-action overflow "⋯" menu (native <details>, no toggle JS). */
-    .sim-action-menu { position:relative; display:inline-block; }
-    .sim-action-menu > summary { list-style:none; cursor:pointer; padding:2px 7px;
-      line-height:1; font-weight:600; }
-    .sim-action-menu > summary::-webkit-details-marker { display:none; }
-    .sim-action-menu > summary::marker { content:""; }
-    .sim-action-menu[open] > summary { background:#e5e7eb; }
-    .sim-action-menu-list { position:absolute; right:0; top:calc(100% + 4px); z-index:60;
-      background:#fff; border:1px solid #e5e7eb; border-radius:8px;
-      box-shadow:0 8px 24px rgba(0,0,0,0.14); padding:6px; min-width:158px;
-      display:flex; flex-direction:column; gap:3px; }
-    .sim-action-menu-item .action-btn { display:block; width:100%; box-sizing:border-box;
-      text-align:left; }
-    :root[data-theme="dark"] .sim-action-menu-list { background:var(--card,#1f2937);
-      border-color:var(--border,#374151); }
-    :root[data-theme="dark"] .sim-action-menu[open] > summary { background:var(--hover,#374151); }
     /* Drag-to-resize grip on each column's right edge (ColResize). Invisible
        until the header row is hovered, then a faint divider hints the handle. */
     .col-resize-grip::after { content:""; position:absolute; top:20%; right:2px; width:2px; height:60%;
@@ -1840,22 +1676,26 @@ a.viv-bs-commit:hover { text-decoration: underline; }
   </style>
 
   <div style="overflow-x:auto; width:100%;">
-  <table id="sim-table" style="width:100%; min-width:760px; table-layout:fixed; border-collapse: collapse; font-size: 13px; display: none;">
+  <table id="sim-table" style="width:100%; min-width:1240px; table-layout:fixed; border-collapse: collapse; font-size: 13px; display: none;">
     <thead>
       <tr style="background:#f3f4f6;">
-        <th data-sort-key="run" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:8px; cursor:pointer;" title="Run — with its study · investigation · composite">Run</th>
-        <th data-sort-key="config" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:8px; width:190px; cursor:pointer;">Config</th>
-        <th data-sort-key="origin" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:8px; width:96px; cursor:pointer;" title="Origin (local / remote) + emitter">Kind</th>
-        <th data-sort-key="time" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:8px; width:104px; cursor:pointer;">Time</th>
-        <th data-sort-key="status" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:8px; width:96px; cursor:pointer;">Status</th>
-        <th style="text-align:left; padding:8px; width:118px;">Actions</th>
+        <th data-sort-key="investigation" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:108px; cursor:pointer;">Investigation</th>
+        <th data-sort-key="study" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:100px; cursor:pointer;">Study</th>
+        <th data-sort-key="run" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; cursor:pointer;">Run</th>
+        <th data-sort-key="composite" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:130px; cursor:pointer;">Composite</th>
+        <th data-sort-key="source" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:120px; cursor:pointer;" title="Repository + commit the run launched from">Source</th>
+        <th data-sort-key="config" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:140px; cursor:pointer;">Config</th>
+        <th data-sort-key="location" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:110px; cursor:pointer;">Location</th>
+        <th data-sort-key="origin" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:66px; cursor:pointer;">Origin</th>
+        <th data-sort-key="emitter_type" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:74px; cursor:pointer;">Emitter</th>
+        <th data-sort-key="time" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:98px; cursor:pointer;">Time</th>
+        <th data-sort-key="status" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:80px; cursor:pointer;">Status</th>
+        <th data-sort-key="tools" onclick="_onSimHeaderClick(this)" style="text-align:left; padding:6px 8px; width:104px; cursor:pointer;">Tools</th>
+        <th style="text-align:left; padding:6px 8px; width:220px;">Actions</th>
       </tr>
     </thead>
     <tbody id="sim-tbody"></tbody>
   </table>
-  <div id="sim-more" style="display:none; padding:12px 0; text-align:center;">
-    <button class="action-btn" onclick="_simShowMore()">Show more runs</button>
-  </div>
   </div>
 
   <!-- Confirmation dialog for full simulation delete -->
@@ -1996,9 +1836,6 @@ a.viv-bs-commit:hover { text-decoration: underline; }
         <h3 id="ce-name" hidden></h3>
         <code id="ce-id" hidden></code>
         <code id="ce-module" hidden></code>
-        <label class="js-authoring" style="display:flex;align-items:center;gap:4px;font-size:0.85em;cursor:pointer;white-space:nowrap" title="When a composite run finishes, automatically run its declared analyses/visualizations (workspace setting ui.auto_results).">
-          <input type="checkbox" id="ui-auto-results-cb" checked onchange="_setAutoResults(this.checked)"> Auto-run results
-        </label>
         <button class="btn-mini" onclick="_popoutLoom('composite-explore-frame')" title="Open in a separate window. If it opens as a tab, your browser's 'open new pages as tabs' preference is overriding the popup hint (Safari → Tabs → 'Open pages in tabs instead of windows' → set to 'Manually').">Pop out &#8599;</button>
       </div>
       <iframe id="composite-explore-frame"
@@ -2013,65 +1850,6 @@ a.viv-bs-commit:hover { text-decoration: underline; }
 </main>
 
   </div> <!-- /.viv-main -->
-
-  <!-- RIGHT RAIL: process code — collapsible editable Python source for the
-       selected registry process/step. Global across tabs; collapsed by default
-       to a thin edge tab (see .viv-code-collapsed CSS + process-code.js). -->
-  <aside id="viv-code-rail" class="viv-code-rail viv-code-collapsed" aria-label="Process code">
-    <button class="viv-code-edge" id="viv-code-edge" type="button"
-            title="Show process code" aria-label="Show process code"
-            onclick="window.ProcessCode&&ProcessCode.toggle()">
-      <span class="viv-code-edge-label">&lt;/&gt; Code</span>
-    </button>
-    <div class="viv-code-panel">
-      <div class="viv-code-resize-handle" id="viv-code-resize-handle"
-           role="separator" aria-orientation="vertical" aria-label="Resize code panel"
-           title="Drag to resize"></div>
-      <div class="viv-code-head">
-        <div class="viv-code-title">
-          <strong id="viv-code-name">Code</strong>
-          <code id="viv-code-addr" class="viv-code-addr"></code>
-        </div>
-        <button class="viv-code-close" type="button" title="Collapse"
-                aria-label="Collapse code panel"
-                onclick="window.ProcessCode&&ProcessCode.toggle()">&times;</button>
-      </div>
-      <!-- New-file bar: shown only while authoring a new artifact. -->
-      <div class="viv-code-newbar" id="viv-code-newbar" hidden>
-        <label class="viv-code-newname-label">Name
-          <input type="text" id="viv-code-newname" class="viv-code-newname" spellcheck="false"
-                 placeholder="MyProcess" oninput="window.ProcessCode&&ProcessCode.onNameInput(this.value)">
-        </label>
-        <span class="viv-code-target" id="viv-code-target"></span>
-      </div>
-      <div class="viv-code-meta">
-        <span id="viv-code-badge" class="viv-code-badge"></span>
-        <code id="viv-code-path" class="viv-code-path"></code>
-      </div>
-      <div class="viv-code-editor-wrap" id="viv-code-editor-wrap">
-        <p class="viv-code-empty" id="viv-code-empty">No code loaded yet. In the <strong>Registry</strong>, click the <strong>&lt;/&gt; Code</strong> button on any process, step, or composite card to view and edit its source here — or <strong>+ New</strong> to author one. Composites show their spec YAML, or the generator&rsquo;s Python module.</p>
-        <textarea id="viv-code-textarea" class="viv-code-textarea" spellcheck="false" hidden></textarea>
-      </div>
-      <!-- Validation checklist (Check results). -->
-      <div class="viv-code-checks" id="viv-code-checks" hidden></div>
-      <div class="viv-code-foot">
-        <span id="viv-code-status" class="viv-code-status"></span>
-        <div class="viv-code-actions">
-          <!-- Edit-mode actions -->
-          <button class="btn-mini viv-code-editact" id="viv-code-revert" type="button"
-                  onclick="window.ProcessCode&&ProcessCode.revert()" disabled>Revert</button>
-          <button class="btn-mini btn-primary viv-code-editact" id="viv-code-save" type="button"
-                  onclick="window.ProcessCode&&ProcessCode.save()" disabled>Save</button>
-          <!-- New-mode actions -->
-          <button class="btn-mini viv-code-newact" id="viv-code-check" type="button" hidden
-                  onclick="window.ProcessCode&&ProcessCode.check()">Check</button>
-          <button class="btn-mini btn-primary viv-code-newact" id="viv-code-create" type="button" hidden
-                  onclick="window.ProcessCode&&ProcessCode.create()">Create</button>
-        </div>
-      </div>
-    </div>
-  </aside>
-
 </div> <!-- /.viv-layout -->
 
 <!-- ============================================================ -->
@@ -2407,37 +2185,31 @@ Nothing on <code id="pr-base-display-2">main</code> changes until someone presse
      SEPARATE tag after the config line publish.py rewrites, so it always reads
      the injected basePath. -->
 <script>window.__BASE_PATH__ = (window.__DASH_CONFIG__ && window.__DASH_CONFIG__.basePath) || "";</script>
-<script src="assets/data-source.js?v=1790625725_1790625725"></script>
-<script src="assets/render-helpers.js?v=1790625725_1790625725"></script>
-<script src="assets/client.js?v=1790625725_1790625725" onerror="/* live mode unavailable */"></script>
-<script src="assets/aig-graph.js?v=1790625725_1790625725" onerror="/* aig-graph unavailable */"></script>
-<script src="assets/audit.js?v=1790625725_1790625725" onerror="/* audit view unavailable */"></script>
-<script src="assets/col-resize.js?v=1790625725_1790625725"></script>
-<script src="assets/process-code.js?v=1790625725_1790625725" onerror="/* process-code panel unavailable */"></script>
-<script src="assets/sim-table.js?v=1790625725_1790625725"></script>
+<script src="assets/data-source.js"></script>
+<script src="assets/render-helpers.js"></script>
+<script src="assets/client.js" onerror="/* live mode unavailable */"></script>
+<script src="assets/aig-graph.js?v=1787973839_1787962322" onerror="/* aig-graph unavailable */"></script>
+<script src="assets/audit.js?v=1787973839_1787962322" onerror="/* audit view unavailable */"></script>
+<script src="assets/col-resize.js?v=1787973839_1787962322"></script>
+<script src="assets/sim-table.js?v=1787973839_1787962322"></script>
 <!-- composite-card.js: the shared composite-card renderer (extracted from
      walkthrough.js, study-spine-reorg Task 6) — MUST load before
      walkthrough.js, which now calls these functions as globals rather than
      defining them itself. Also loaded on study-detail.html so the Model tab
      renders the identical Full/Grid composite card. -->
-<script src="assets/composite-card.js?v=1790625725_1790625725" onerror="/* composite-card unavailable */"></script>
-<!-- loom-embed.js: the single source for the loom embed glue (_openCompositeLoomInline
-     + _compositeStateUrl + auto-height). MUST load before walkthrough.js, which now
-     calls these as globals instead of duplicating them. -->
-<script src="assets/loom-embed.js?v=1790625725_1790625725" onerror="/* loom-embed unavailable */"></script>
-<script src="assets/checklist-select.js?v=1790625725_1790625725" onerror="/* checklist-select unavailable */"></script>
-<script src="assets/walkthrough.js?v=1790625725_1790625725" onerror="/* walkthrough unavailable */"></script>
-<script src="assets/github-login.js?v=1790625725_1790625725" onerror="/* github-login unavailable */"></script>
+<script src="assets/composite-card.js?v=1787973839_1787962322" onerror="/* composite-card unavailable */"></script>
+<script src="assets/walkthrough.js?v=1787973839_1787962322" onerror="/* walkthrough unavailable */"></script>
+<script src="assets/github-login.js?v=1787973839_1787962322" onerror="/* github-login unavailable */"></script>
 <!-- workspace-switcher.js is intentionally not loaded: the left-rail dropdown
      it used to drive has been repurposed into the investigation switcher
      (investigation-switcher.js). The /api/workspaces endpoints remain available
      for CLI tooling. -->
-<script src="assets/investigation-switcher.js?v=1790625725_1790625725"></script>
-<script src="assets/branch-source.js?v=1790625725_1790625725"></script>
+<script src="assets/investigation-switcher.js"></script>
+<script src="assets/branch-source.js?v=1787973839_1787962322"></script>
 <!-- Encode this tab's workspace materialization state in the favicon + title
      (session-per-tab): ready / ⏳ preparing / ⚠️ failed. -->
-<script src="assets/session-status.js?v=1790625725_1790625725"></script>
-<script src="assets/workspace-picker.js?v=1790625725_1790625725"></script>
+<script src="assets/session-status.js?v=1787973839_1787962322"></script>
+<script src="assets/workspace-picker.js?v=1787973839_1787962322"></script>
 <script>
 // Initialize drop zones once walkthrough.js is loaded.
 document.addEventListener("DOMContentLoaded", function() {
