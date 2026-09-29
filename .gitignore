@@ -34,3 +34,7 @@ todo.md
 # Vendored bigraph-loom (Task 8): build outputs, not source.
 vivarium_workbench/loom/node_modules/
 vivarium_workbench/loom/_dist
+
+# demos/v2ecoli pins sibling checkouts by path; its lock only records their HEADs
+# at lock time and goes stale as they move, so it is local, not committed.
+demos/v2ecoli/uv.lock
