@@ -61,14 +61,32 @@
     return _support;
   }
 
+  // Perfetto's Google Analytics must never run from the workbench. Its UI (v58.3,
+  // createEmbedder/initAnalytics in frontend_bundle.js) loads googletagmanager with its own
+  // analytics id whenever the page's origin is `http://localhost:` / `http://127.0.0.1:` /
+  // `*.perfetto.dev` -- i.e. the bundled viewer reached through an SSM tunnel on localhost,
+  // and the ui.perfetto.dev fallback -- unless it runs in testing or embedded mode. Testing
+  // mode (`?testing=1` in the query string) switches off analytics and nothing else in that
+  // release; embedded mode would also remove the sidebar and file drop. Re-check this when
+  // bumping PERFETTO_UI_VERSION (CONTRIBUTING: "Bumping the bundled Perfetto UI").
+  var NO_ANALYTICS_QUERY = 'testing=1';
+
+  function _withoutAnalytics(url) {
+    var hash = '';
+    var i = url.indexOf('#');
+    if (i >= 0) { hash = url.slice(i); url = url.slice(0, i); }
+    if (/[?&]testing=1(&|$)/.test(url)) return url + hash;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + NO_ANALYTICS_QUERY + hash;
+  }
+
   // The absolute Perfetto URL to open for a support body's `viewer`, or null.
   function viewerUrl(viewer, loc) {
     if (!viewer || !viewer.url || viewer.mode === 'off') return null;
     if (viewer.mode === 'bundled') {
       var origin = (loc && loc.origin) || '';
-      return origin + _bp() + viewer.url;          // viewer.url = "/perfetto/"
+      return _withoutAnalytics(origin + _bp() + viewer.url);   // viewer.url = "/perfetto/"
     }
-    return viewer.url;
+    return _withoutAnalytics(viewer.url);
   }
 
   // The origin trace bytes may be posted to, or null. Never '*': an unparseable viewer URL

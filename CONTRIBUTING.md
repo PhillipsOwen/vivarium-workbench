@@ -85,3 +85,10 @@ for every other file — and Perfetto's `LICENSE`). To move to a newer release, 
 build, run `python -m vivarium_workbench.lib.perfetto_ui --print-hashes`, paste
 the three hashes, and check the "Open trace" flow still works (the postMessage
 protocol is Perfetto's public API, but verify it).
+
+Also re-check that analytics stay off. The workbench opens Perfetto with `?testing=1`
+(`static/perfetto-open.js`, `NO_ANALYTICS_QUERY`) because Perfetto loads Google Analytics
+on `http://localhost:` / `http://127.0.0.1:` / `*.perfetto.dev` origins — which is how users
+reach the workbench through an SSM tunnel. Grep the new `frontend_bundle.js` for
+`createEmbedder` / `initAnalytics` and confirm testing mode still disables them (and still
+does nothing else user-visible).

@@ -45,12 +45,17 @@ function perfettoWindow(b, origin) {
 
 async function testViewerUrl() {
   const loc = { origin: 'https://wb.example' };
-  assert.strictEqual(P.viewerUrl({ mode: 'bundled', url: '/perfetto/' }, loc), 'https://wb.example/perfetto/');
-  assert.strictEqual(P.viewerUrl({ mode: 'external', url: 'https://ui.perfetto.dev/' }, loc), 'https://ui.perfetto.dev/');
+  assert.strictEqual(P.viewerUrl({ mode: 'bundled', url: '/perfetto/' }, loc), 'https://wb.example/perfetto/?testing=1');
+  assert.strictEqual(P.viewerUrl({ mode: 'external', url: 'https://ui.perfetto.dev/' }, loc), 'https://ui.perfetto.dev/?testing=1');
+  // Analytics off on the tunnel's localhost origin too (Perfetto enables them there), and the
+  // flag is merged into an existing query / kept before a fragment, never duplicated.
+  assert.strictEqual(P.viewerUrl({ mode: 'bundled', url: '/perfetto/' }, { origin: 'http://localhost:8080' }), 'http://localhost:8080/perfetto/?testing=1');
+  assert.strictEqual(P.viewerUrl({ mode: 'external', url: 'https://pf.example/ui/?x=1#!/viewer' }, loc), 'https://pf.example/ui/?x=1&testing=1#!/viewer');
+  assert.strictEqual(P.viewerUrl({ mode: 'external', url: 'https://pf.example/ui/?testing=1' }, loc), 'https://pf.example/ui/?testing=1');
   assert.strictEqual(P.viewerUrl({ mode: 'off', url: null }, loc), null);
   assert.strictEqual(P.viewerUrl(undefined, loc), null);
   globalThis.__BASE_PATH__ = '/workbench';
-  assert.strictEqual(P.viewerUrl({ mode: 'bundled', url: '/perfetto/' }, loc), 'https://wb.example/workbench/perfetto/');
+  assert.strictEqual(P.viewerUrl({ mode: 'bundled', url: '/perfetto/' }, loc), 'https://wb.example/workbench/perfetto/?testing=1');
   delete globalThis.__BASE_PATH__;
 }
 
@@ -145,7 +150,7 @@ async function testOpenTraceBundledEndToEnd() {
   for (let i = 0; i < 20 && c.active() === 0; i++) await new Promise((r) => setImmediate(r));
   c.tick();
   assert.strictEqual(await done, 'opened');
-  assert.deepStrictEqual(opened, { url: 'https://wb.example/perfetto/', name: '_blank' });
+  assert.deepStrictEqual(opened, { url: 'https://wb.example/perfetto/?testing=1', name: '_blank' });  // analytics off
   assert.ok(f.seen.includes('/api/remote-run-trace?simulation_id=42'));
   const post = w.posted.find((m) => m.msg && m.msg.perfetto);
   assert.strictEqual(post.msg.perfetto.buffer, trace);
