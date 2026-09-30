@@ -233,13 +233,27 @@ def _mark_default_emitter(data: dict, ws_data: dict | None) -> None:
             # xarray→zarr here would break the XArrayEmitter match.
             default_emitter = emitters.normalize_emitter_name(rt.get("default_emitter"))
     needle = default_emitter
+    # Emitters matching the declared default by name. A single class can appear
+    # BOTH as a workspace/framework entry (short name, e.g. "ParquetEmitter")
+    # AND as an environment_only entry-point-scan duplicate (full address,
+    # "viva_emitters.parquet_emitter.ParquetEmitter") — e.g. once its optional
+    # deps (polars) are installed. Both would match the substring needle and get
+    # double-marked. Prefer the non-environment_only entry (the canonical one the
+    # workspace actually resolves) so the duplicate isn't also flagged; fall back
+    # to the environment_only match when that's the only one.
+    matches = [
+        p for p in processes
+        if isinstance(p, dict) and p.get("kind") == "emitter"
+        and bool(needle) and (needle in str(p.get("name") or "").lower())
+    ]
+    non_env = [p for p in matches if p.get("source") != "environment_only"]
+    default_set = {id(p) for p in (non_env if non_env else matches)}
     for p in processes:
         if not isinstance(p, dict):
             continue
         if p.get("kind") != "emitter":
             continue
-        name = str(p.get("name") or "")
-        p["is_workspace_default"] = bool(needle) and (needle in name.lower())
+        p["is_workspace_default"] = id(p) in default_set
     # Expose the resolved value at the top level for convenience / debugging.
     data["default_emitter"] = default_emitter or None
 
