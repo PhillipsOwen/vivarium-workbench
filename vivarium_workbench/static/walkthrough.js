@@ -391,12 +391,15 @@
         var pr = panel.getBoundingClientRect(), fr = frame.getBoundingClientRect();
         chrome = Math.max(0, Math.round(fr.top - pr.top));   // the embed's own header
       }
-      var h = Math.max(minH || 480, Math.round(window.innerHeight - chrome - 24));
+      // a bottom-docked AI panel takes height from the pane (published as --viv-ai-bottom)
+      var aiBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--viv-ai-bottom')) || 0;
+      var h = Math.max(minH || 480, Math.round(window.innerHeight - chrome - 24 - aiBottom));
       frame.style.height = h + 'px';
     };
     fit();
     if (!frame._fitBound) {
       window.addEventListener('resize', fit);
+      window.addEventListener('viv:ai-layout', fit);      // the AI panel docked/undocked/resized
       frame._fitBound = true;
     }
   }
@@ -764,8 +767,8 @@
     // unavailable in a static bundle → redirect to simulation-setup (composites list).
     if (document.body.classList.contains('snapshot')) {
       // 'github' (Source page) IS available in snapshot now — it's the published
-      // workspace switcher (repo navigator + Sync-to-local). Only 'studies'
-      // (the legacy flat list) redirects to the investigations view.
+      // workspace switcher (repo navigator + Sync-to-local). 'studies' (the legacy
+      // flat list) redirects to the investigations view.
       if (pageId === 'studies') {
         pageId = 'investigations';
       }
