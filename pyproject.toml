@@ -51,7 +51,12 @@ dependencies = [
     # and ships a colliding real `pbg_emitters` package; pinning viva-emitters here
     # keeps THIS project off it. See PR body for the still-transitive superpowers
     # pull and the one narrow `process_bigraph.emitter` re-export gap in the shim.)
-    "viva-emitters[sqlite,xarray]>=0.2.3",
+    # `[parquet]` added: viva_emitters.run_reader normalizes results from every
+    # backend (sqlite/parquet/xarray) into a polars DataFrame, so it imports
+    # `polars` unconditionally at module level — not lazily like duckdb/xarray.
+    # Without this extra, `polars` is absent and discover_generators skips
+    # run_reader entirely (ModuleNotFoundError: No module named 'polars').
+    "viva-emitters[sqlite,xarray,parquet]>=0.2.3",
     "xarray>=2026.04",
     # Uncapped (>= not ~=): ~=3.1.6 excluded 3.2.x — a downgrade for py3.12+ vs
     # the prior version-split. The [test] extra below uses a bare `zarr`, so
@@ -73,7 +78,13 @@ dependencies = [
     # 0.23.0 declares viva-emitters>=0.2.3, so the floor is bumped here. The
     # [tool.uv.sources] git pin below stays for main-branch unification with the
     # sibling process-packages (see that section).
-    "viva-superpowers>=0.23.0",
+    # `[evaluator]` added: viva_superpowers.study_evaluator imports `polars` at
+    # module level, and vivarium_workbench.lib.readout_validation transitively
+    # imports it via readout_resolver -> study_evaluator. Without this extra,
+    # `polars` is absent and discover_generators skips study_evaluator,
+    # readout_resolver, readout_migration, and readout_validation
+    # (ModuleNotFoundError: No module named 'polars').
+    "viva-superpowers[evaluator]>=0.23.0",
     # viva-superpowers requires viva-basic-processes, which is not yet on
     # PyPI. Declare it BARE here and supply the git URL via [tool.uv.sources]
     # below — NOT as an inline `pkg @ git+...` direct reference. A baked-in
