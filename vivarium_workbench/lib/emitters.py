@@ -763,8 +763,21 @@ def run_with_emitter(name, *, state, run_id, emit_paths, out_dir, core, steps,
             from vivarium_workbench.lib import composite_runs as cr
             st = state
             if parquet_dir:
-                st = cr.inject_analysis_parquet_emitters(
-                    st, run_id=run_id, out_dir=parquet_dir)
+                # The agent-rooted analysis emitters only apply to a multi-agent
+                # composite (baseline nests stores under `agents/<id>/`);
+                # inject_analysis_parquet_emitters no-ops (returns state as-is)
+                # when there's no `agents` key. For a flat composite — e.g. a
+                # generator that DECLARES a ParquetEmitter on a top-level store —
+                # that no-op left the parquet store empty while provenance still
+                # said "parquet" (silent data loss). Fall back to the declared
+                # sink so a flat generator's ParquetEmitter actually writes.
+                _has_agents = isinstance(state.get("agents"), dict) and state.get("agents")
+                if _has_agents:
+                    st = cr.inject_analysis_parquet_emitters(
+                        st, run_id=run_id, out_dir=parquet_dir)
+                else:
+                    st = install_default_emitters(
+                        state, spec, run_id=run_id, out_dir=parquet_dir, core=core)
                 try:
                     from viva_emitters.parquet_emitter import ParquetEmitter
                     core.register_link("ParquetEmitter", ParquetEmitter)
