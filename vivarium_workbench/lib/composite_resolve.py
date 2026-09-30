@@ -10,7 +10,6 @@ thin wrapper.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import yaml
@@ -20,11 +19,7 @@ from vivarium_workbench.lib.sms_api_client import SmsApiClient, SmsApiError
 from vivarium_workbench.lib.workspace_deps_views import _sms_api_base
 
 
-def _ws_add_to_sys_path(ws_root: Path) -> None:
-    """Ensure the workspace root is on ``sys.path`` so its package is importable."""
-    ws = str(ws_root)
-    if ws not in sys.path:
-        sys.path.insert(0, ws)
+from vivarium_workbench.lib.workspace_paths import add_ws_to_sys_path as _ws_add_to_sys_path
 
 
 def _prime_registry() -> None:
